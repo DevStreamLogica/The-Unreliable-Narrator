@@ -22,28 +22,28 @@ public class RoomManager {
     private void initializeRooms() {
         // Create all rooms based on Location enum from text game
         createRoom(Room.RoomID.ENTRANCE, "Entrance Hall",
-            "The main entrance of Vance Manor. Dust motes float in dim light.");
+                "The main entrance of Vance Manor. Dust motes float in dim light.");
 
         createRoom(Room.RoomID.STUDY, "The Study",
-            "The crime scene. Harold's desk faces large windows. Fireplace on the north wall. Bookshelves line the east wall.");
+                "The crime scene. Harold's desk faces large windows. Fireplace on the north wall. Bookshelves line the east wall.");
 
         createRoom(Room.RoomID.PARLOR, "The Parlor",
-            "Where guests gathered after dinner. Comfortable chairs. A fireplace. A grandfather clock in the corner.");
+                "Where guests gathered after dinner. Comfortable chairs. A fireplace. A grandfather clock in the corner.");
 
         createRoom(Room.RoomID.KITCHEN, "The Kitchen",
-            "Large, industrial. A narrow door leads to the storage cellar.");
+                "Large, industrial. A narrow door leads to the storage cellar.");
 
         createRoom(Room.RoomID.GUEST_ROOMS, "Guest Rooms",
-            "The guest wing. Margaret's room and James's room are here.");
+                "The guest wing. Margaret's room and James's room are here.");
 
         createRoom(Room.RoomID.GROUNDSKEEPER_SHED, "Groundskeeper's Shed",
-            "Small building on the property edge. A logbook sits on the desk.");
+                "Small building on the property edge. A logbook sits on the desk.");
 
         createRoom(Room.RoomID.SERVANTS_QUARTERS, "Servants' Quarters",
-            "Staff area. A narrow door leads to the servants' staircase.");
+                "Staff area. A narrow door leads to the servants' staircase.");
 
         createRoom(Room.RoomID.CELLAR, "The Cellar",
-            "Dark storage area beneath the kitchen. Flour sacks and wine racks.");
+                "Dark storage area beneath the kitchen. Flour sacks and wine racks.");
 
         // Set up connections based on the navigation guide
         setupConnections();
@@ -76,15 +76,22 @@ public class RoomManager {
         entrance.addConnection(Direction.NORTH, Room.RoomID.KITCHEN);
         entrance.addConnection(Direction.UP, Room.RoomID.GUEST_ROOMS);
 
-        // Add hotspots for entrance
-        entrance.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.DOOR, Direction.EAST, Room.RoomID.STUDY));
-        entrance.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_LEFT, Direction.WEST, Room.RoomID.PARLOR));
-        entrance.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_FORWARD, Direction.NORTH, Room.RoomID.KITCHEN));
-        entrance.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.STAIRS_UP, Direction.UP, Room.RoomID.GUEST_ROOMS));
+        // Entrance hotspots — custom positions matching artwork
+        Hotspot parlorDoor = new Hotspot(Hotspot.HotspotType.DOOR, Direction.WEST, Room.RoomID.PARLOR);
+        parlorDoor.setBounds(300, 140, 30, 190);
+        entrance.addHotspot(parlorDoor);
+
+        Hotspot studyDoor = new Hotspot(Hotspot.HotspotType.DOOR, Direction.EAST, Room.RoomID.STUDY);
+        studyDoor.setBounds(990, 145, 30, 180);
+        entrance.addHotspot(studyDoor);
+
+        Hotspot kitchenPassage = new Hotspot(Hotspot.HotspotType.DOOR, Direction.NORTH, Room.RoomID.KITCHEN);
+        kitchenPassage.setBounds(490, 140, 90, 190);
+        entrance.addHotspot(kitchenPassage);
+
+        Hotspot staircase = new Hotspot(Hotspot.HotspotType.STAIRS_UP, Direction.UP, Room.RoomID.GUEST_ROOMS);
+        staircase.setBounds(490, 440, 90, 150);
+        entrance.addHotspot(staircase);
 
         // STUDY connections
         // From text game: can go back to ENTRANCE, and to PARLOR
@@ -92,9 +99,9 @@ public class RoomManager {
         study.addConnection(Direction.NORTH, Room.RoomID.PARLOR);
 
         study.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.ENTRANCE));
+                Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.ENTRANCE));
         study.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.DOOR, Direction.NORTH, Room.RoomID.PARLOR));
+                Hotspot.HotspotType.DOOR, Direction.NORTH, Room.RoomID.PARLOR));
 
         // PARLOR connections
         // From text game: can go to ENTRANCE, STUDY, SERVANTS_QUARTERS
@@ -103,38 +110,39 @@ public class RoomManager {
         parlor.addConnection(Direction.NORTH, Room.RoomID.SERVANTS_QUARTERS);
 
         parlor.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_RIGHT, Direction.EAST, Room.RoomID.ENTRANCE));
+                Hotspot.HotspotType.ARROW_RIGHT, Direction.EAST, Room.RoomID.ENTRANCE));
         parlor.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.DOOR, Direction.SOUTH, Room.RoomID.STUDY));
+                Hotspot.HotspotType.DOOR, Direction.SOUTH, Room.RoomID.STUDY));
         parlor.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_FORWARD, Direction.NORTH, Room.RoomID.SERVANTS_QUARTERS));
+                Hotspot.HotspotType.ARROW_FORWARD, Direction.NORTH, Room.RoomID.SERVANTS_QUARTERS));
 
         // KITCHEN connections
-        // From text game: can go back to ENTRANCE, to SERVANTS_QUARTERS, and down to CELLAR
+        // From text game: can go back to ENTRANCE, to SERVANTS_QUARTERS, and down to
+        // CELLAR
         kitchen.addConnection(Direction.SOUTH, Room.RoomID.ENTRANCE);
         kitchen.addConnection(Direction.WEST, Room.RoomID.SERVANTS_QUARTERS);
         kitchen.addConnection(Direction.DOWN, Room.RoomID.CELLAR);
 
         kitchen.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.ENTRANCE));
+                Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.ENTRANCE));
         kitchen.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_LEFT, Direction.WEST, Room.RoomID.SERVANTS_QUARTERS));
+                Hotspot.HotspotType.ARROW_LEFT, Direction.WEST, Room.RoomID.SERVANTS_QUARTERS));
         kitchen.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.STAIRS_DOWN, Direction.DOWN, Room.RoomID.CELLAR));
+                Hotspot.HotspotType.STAIRS_DOWN, Direction.DOWN, Room.RoomID.CELLAR));
 
         // GUEST ROOMS connections
         // From text game: can go back down to ENTRANCE
         guestRooms.addConnection(Direction.DOWN, Room.RoomID.ENTRANCE);
 
         guestRooms.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.STAIRS_DOWN, Direction.DOWN, Room.RoomID.ENTRANCE));
+                Hotspot.HotspotType.STAIRS_DOWN, Direction.DOWN, Room.RoomID.ENTRANCE));
 
         // GROUNDSKEEPER SHED connections
         // From text game: exterior building, can go back to ENTRANCE area
         shed.addConnection(Direction.SOUTH, Room.RoomID.ENTRANCE);
 
         shed.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.ENTRANCE));
+                Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.ENTRANCE));
 
         // SERVANTS' QUARTERS connections
         // From text game: can go back to PARLOR, and to KITCHEN
@@ -142,16 +150,16 @@ public class RoomManager {
         servants.addConnection(Direction.EAST, Room.RoomID.KITCHEN);
 
         servants.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.PARLOR));
+                Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.PARLOR));
         servants.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_RIGHT, Direction.EAST, Room.RoomID.KITCHEN));
+                Hotspot.HotspotType.ARROW_RIGHT, Direction.EAST, Room.RoomID.KITCHEN));
 
         // CELLAR connections
         // From text game: can go back up to KITCHEN
         cellar.addConnection(Direction.UP, Room.RoomID.KITCHEN);
 
         cellar.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.STAIRS_UP, Direction.UP, Room.RoomID.KITCHEN));
+                Hotspot.HotspotType.STAIRS_UP, Direction.UP, Room.RoomID.KITCHEN));
     }
 
     private void setupExamineHotspots() {
@@ -221,6 +229,11 @@ public class RoomManager {
     }
 
     // Getters
-    public Room getCurrentRoom() { return currentRoom; }
-    public Room getRoom(Room.RoomID id) { return rooms.get(id); }
+    public Room getCurrentRoom() {
+        return currentRoom;
+    }
+
+    public Room getRoom(Room.RoomID id) {
+        return rooms.get(id);
+    }
 }

@@ -2,6 +2,7 @@ package com.dsa.game.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -11,6 +12,8 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.dsa.game.DSAGame;
@@ -39,15 +42,18 @@ public class GameScreen implements Screen {
 
     // Textures
     private Map<Room.RoomID, Texture> roomTextures;
-    private Map<Direction, Texture> arrowTextures;
-    private Texture doorTexture;
-    private Texture examineIconTexture;
-    private Texture uiPanelTexture;
-    private Texture tooltipBackgroundTexture;
+    private Texture pixelTexture; // 1x1 white pixel for dynamic drawing
 
     // UI
     private String currentTooltip = "";
     private GlyphLayout layout;
+
+    // Fade timers
+    private float titleFadeTimer = 0;
+    private float descFadeTimer = 0;
+    private static final float TITLE_FADE_DURATION = 3f;
+    private static final float DESC_FADE_DURATION = 5f;
+    private Room.RoomID lastRenderedRoom = null;
 
     // Game state & systems
     private GameState gameState;
@@ -82,7 +88,7 @@ public class GameScreen implements Screen {
 
         this.titleFont = new BitmapFont();
         this.titleFont.setColor(new Color(0.95f, 0.95f, 0.9f, 1));
-        this.titleFont.getData().setScale(1.8f);
+        this.titleFont.getData().setScale(1.4f);
 
         this.layout = new GlyphLayout();
 
@@ -114,38 +120,24 @@ public class GameScreen implements Screen {
 
     private void generatePlaceholderTextures() {
         roomTextures = new HashMap<>();
-        arrowTextures = new HashMap<>();
 
         for (Room.RoomID roomId : Room.RoomID.values()) {
-            roomTextures.put(roomId, PlaceholderGenerator.generateRoomPlaceholder(
-                roomId, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT));
+            String imagePath = "rooms/" + roomId.name().toLowerCase() + ".png";
+            if (Gdx.files.internal(imagePath).exists()) {
+                roomTextures.put(roomId, new Texture(Gdx.files.internal(imagePath)));
+            } else {
+                roomTextures.put(roomId, PlaceholderGenerator.generateRoomPlaceholder(
+                    roomId, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT));
+            }
         }
-
-        arrowTextures.put(Direction.NORTH, PlaceholderGenerator.generateArrowTexture(80, Direction.NORTH));
-        arrowTextures.put(Direction.SOUTH, PlaceholderGenerator.generateArrowTexture(80, Direction.SOUTH));
-        arrowTextures.put(Direction.EAST, PlaceholderGenerator.generateArrowTexture(80, Direction.EAST));
-        arrowTextures.put(Direction.WEST, PlaceholderGenerator.generateArrowTexture(80, Direction.WEST));
-
-        doorTexture = PlaceholderGenerator.generateDoorTexture(200, 300);
-        examineIconTexture = PlaceholderGenerator.generateExamineIcon(36);
     }
 
     private void generateUITextures() {
-        Pixmap uiPixmap = new Pixmap(600, 100, Pixmap.Format.RGBA8888);
-        uiPixmap.setColor(new Color(0, 0, 0, 0.7f));
-        uiPixmap.fillRectangle(0, 0, 600, 100);
-        uiPixmap.setColor(new Color(0.3f, 0.3f, 0.3f, 0.8f));
-        uiPixmap.drawRectangle(0, 0, 600, 100);
-        uiPanelTexture = new Texture(uiPixmap);
-        uiPixmap.dispose();
-
-        Pixmap tooltipPixmap = new Pixmap(300, 40, Pixmap.Format.RGBA8888);
-        tooltipPixmap.setColor(new Color(0.1f, 0.1f, 0.15f, 0.9f));
-        tooltipPixmap.fillRectangle(0, 0, 300, 40);
-        tooltipPixmap.setColor(new Color(0.4f, 0.4f, 0.5f, 1));
-        tooltipPixmap.drawRectangle(0, 0, 300, 40);
-        tooltipBackgroundTexture = new Texture(tooltipPixmap);
-        tooltipPixmap.dispose();
+        Pixmap p = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        p.setColor(Color.WHITE);
+        p.fill();
+        pixelTexture = new Texture(p);
+        p.dispose();
     }
 
     private void setupInput() {
@@ -200,16 +192,26 @@ public class GameScreen implements Screen {
 
                 if (textPanel.isVisible()) {
                     textPanel.handleHover(gameX, gameY);
+                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
                     return false;
                 }
 
                 actionBar.handleHover(gameX, gameY);
+                awarenessMeter.handleHover(gameY);
 
+                boolean overHotspot = false;
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
                     hotspot.checkHover(gameX, gameY);
                     if (hotspot.isHovered()) {
                         currentTooltip = hotspot.getTooltip();
+                        overHotspot = true;
                     }
+                }
+
+                if (overHotspot) {
+                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Hand);
+                } else {
+                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
                 }
                 return false;
             }
@@ -277,6 +279,8 @@ public class GameScreen implements Screen {
 
     private void handleNavigation(Room.RoomID target) {
         roomManager.navigateTo(target);
+        titleFadeTimer = 0;
+        descFadeTimer = 0;
         gameState.incrementVisit(target);
         gameState.incrementCommandCount();
         gameState.addEvent("Moved to " + roomManager.getCurrentRoom().getName());
@@ -1249,6 +1253,17 @@ public class GameScreen implements Screen {
 
         Room currentRoom = roomManager.getCurrentRoom();
 
+        // Reset fade timers on room change
+        if (lastRenderedRoom != currentRoom.getId()) {
+            lastRenderedRoom = currentRoom.getId();
+            titleFadeTimer = 0;
+            descFadeTimer = 0;
+        }
+
+        // Advance fade timers
+        titleFadeTimer += delta;
+        descFadeTimer += delta;
+
         batch.begin();
 
         // Draw room background
@@ -1257,55 +1272,41 @@ public class GameScreen implements Screen {
             batch.draw(roomTex, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
         }
 
-        // Draw room name with background panel
-        layout.setText(titleFont, currentRoom.getName());
-        float titleX = DSAGame.SCREEN_WIDTH / 2 - layout.width / 2;
-        float titleY = DSAGame.SCREEN_HEIGHT - 40;
-
-        batch.setColor(1, 1, 1, 0.8f);
-        batch.draw(uiPanelTexture, titleX - 20, titleY - 50, layout.width + 40, 60);
-        batch.setColor(Color.WHITE);
-        titleFont.draw(batch, currentRoom.getName(), titleX, titleY);
-
-        // Draw hotspots
+        // Draw subtle outline glow on hovered hotspots
         for (Hotspot hotspot : currentRoom.getHotspots()) {
-            Texture hotspotTex = getHotspotTexture(hotspot);
-            if (hotspotTex != null) {
-                if (hotspot.isHovered()) {
-                    batch.setColor(1.2f, 1.2f, 0.7f, 1);
-                    float scale = 1.15f;
-                    float offsetX = hotspot.getBounds().width * (scale - 1) / 2;
-                    float offsetY = hotspot.getBounds().height * (scale - 1) / 2;
-                    batch.draw(hotspotTex,
-                        hotspot.getBounds().x - offsetX,
-                        hotspot.getBounds().y - offsetY,
-                        hotspot.getBounds().width * scale,
-                        hotspot.getBounds().height * scale);
-                } else {
-                    batch.setColor(Color.WHITE);
-                    batch.draw(hotspotTex,
-                        hotspot.getBounds().x,
-                        hotspot.getBounds().y,
-                        hotspot.getBounds().width,
-                        hotspot.getBounds().height);
-                }
+            if (hotspot.isHovered()) {
+                Rectangle hb = hotspot.getBounds();
+                float glowAlpha = 0.35f;
+                // Outer glow (2px border)
+                batch.setColor(0.9f, 0.85f, 0.6f, glowAlpha * 0.4f);
+                batch.draw(pixelTexture, hb.x - 2, hb.y - 2, hb.width + 4, 2);                      // bottom
+                batch.draw(pixelTexture, hb.x - 2, hb.y + hb.height, hb.width + 4, 2);               // top
+                batch.draw(pixelTexture, hb.x - 2, hb.y, 2, hb.height);                              // left
+                batch.draw(pixelTexture, hb.x + hb.width, hb.y, 2, hb.height);                       // right
+                // Inner glow (1px border)
+                batch.setColor(0.95f, 0.9f, 0.7f, glowAlpha);
+                batch.draw(pixelTexture, hb.x, hb.y, hb.width, 1);                                   // bottom
+                batch.draw(pixelTexture, hb.x, hb.y + hb.height - 1, hb.width, 1);                   // top
+                batch.draw(pixelTexture, hb.x, hb.y, 1, hb.height);                                  // left
+                batch.draw(pixelTexture, hb.x + hb.width - 1, hb.y, 1, hb.height);                   // right
                 batch.setColor(Color.WHITE);
             }
         }
 
-        // Draw examine icons on top of examine hotspots
-        for (Hotspot hotspot : currentRoom.getHotspots()) {
-            if (hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
-                float iconX = hotspot.getBounds().x + hotspot.getBounds().width / 2 - 18;
-                float iconY = hotspot.getBounds().y + hotspot.getBounds().height / 2 - 18;
-                if (hotspot.isHovered()) {
-                    batch.setColor(1.3f, 1.3f, 0.8f, 1);
-                } else {
-                    batch.setColor(1, 1, 1, 0.7f);
-                }
-                batch.draw(examineIconTexture, iconX, iconY, 36, 36);
-                batch.setColor(Color.WHITE);
-            }
+        // Draw room name with text shadow (top-left, fades out)
+        float titleAlpha = MathUtils.clamp(1f - (titleFadeTimer - TITLE_FADE_DURATION), 0f, 1f);
+        if (titleAlpha > 0) {
+            layout.setText(titleFont, currentRoom.getName());
+            float titleX = 20;
+            float titleY = DSAGame.SCREEN_HEIGHT - 20;
+
+            // Shadow
+            titleFont.setColor(0, 0, 0, titleAlpha * 0.7f);
+            titleFont.draw(batch, currentRoom.getName(), titleX + 2, titleY - 2);
+            // Text
+            titleFont.setColor(0.95f, 0.95f, 0.9f, titleAlpha);
+            titleFont.draw(batch, currentRoom.getName(), titleX, titleY);
+            titleFont.setColor(Color.WHITE);
         }
 
         // Draw tooltip
@@ -1313,30 +1314,60 @@ public class GameScreen implements Screen {
             layout.setText(font, currentTooltip);
             touchPos.set(Gdx.input.getX(), Gdx.input.getY());
             viewport.unproject(touchPos);
+
+            float tooltipW = layout.width + 16;
+            float tooltipH = layout.height + 12;
             float tooltipX = touchPos.x + 15;
             float tooltipY = touchPos.y + 15;
 
-            batch.setColor(1, 1, 1, 0.9f);
-            batch.draw(tooltipBackgroundTexture, tooltipX - 5, tooltipY - 25, layout.width + 10, 35);
-            batch.setColor(new Color(0.95f, 0.95f, 0.85f, 1));
-            font.draw(batch, currentTooltip, tooltipX, tooltipY);
+            // Clamp to screen bounds
+            if (tooltipX + tooltipW > DSAGame.SCREEN_WIDTH - 5) {
+                tooltipX = DSAGame.SCREEN_WIDTH - tooltipW - 5;
+            }
+            if (tooltipY + tooltipH > DSAGame.SCREEN_HEIGHT - 5) {
+                tooltipY = touchPos.y - tooltipH - 5;
+            }
+            if (tooltipX < 5) tooltipX = 5;
+            if (tooltipY < 5) tooltipY = 5;
+
+            // Dark teal-black background
+            batch.setColor(0.06f, 0.1f, 0.1f, 0.92f);
+            batch.draw(pixelTexture, tooltipX, tooltipY, tooltipW, tooltipH);
+
+            // Muted gold border
+            batch.setColor(0.6f, 0.55f, 0.35f, 0.8f);
+            batch.draw(pixelTexture, tooltipX, tooltipY, tooltipW, 1);                    // bottom
+            batch.draw(pixelTexture, tooltipX, tooltipY + tooltipH - 1, tooltipW, 1);     // top
+            batch.draw(pixelTexture, tooltipX, tooltipY, 1, tooltipH);                    // left
+            batch.draw(pixelTexture, tooltipX + tooltipW - 1, tooltipY, 1, tooltipH);     // right
+
+            // Cream text
             batch.setColor(Color.WHITE);
+            font.setColor(0.95f, 0.93f, 0.85f, 1f);
+            font.draw(batch, currentTooltip, tooltipX + 8, tooltipY + tooltipH - 6);
+            font.setColor(Color.WHITE);
         }
 
-        // Draw room description (dynamic)
-        String description = RoomDescriptions.getDescription(
-            currentRoom.getId(),
-            gameState.getVisitCount(currentRoom.getId()),
-            gameState.getAwareness()
-        );
-        layout.setText(font, description);
-        float descX = 20;
-        float descY = 80;
+        // Draw room description with text shadow (fades out), positioned above action bar
+        float descAlpha = MathUtils.clamp(1f - (descFadeTimer - DESC_FADE_DURATION), 0f, 1f);
+        if (descAlpha > 0) {
+            String description = RoomDescriptions.getDescription(
+                currentRoom.getId(),
+                gameState.getVisitCount(currentRoom.getId()),
+                gameState.getAwareness()
+            );
+            float descX = 20;
+            float descY = actionBar.getBarHeight() + 30;
 
-        batch.setColor(1, 1, 1, 0.75f);
-        batch.draw(uiPanelTexture, descX - 10, descY - 50, Math.min(layout.width + 20, 600), 70);
-        batch.setColor(new Color(0.9f, 0.9f, 0.85f, 1));
-        font.draw(batch, description, descX, descY);
+            // Shadow
+            font.setColor(0, 0, 0, descAlpha * 0.7f);
+            font.draw(batch, description, descX + 1, descY - 1);
+            // Text
+            font.setColor(0.9f, 0.9f, 0.85f, descAlpha);
+            font.draw(batch, description, descX, descY);
+            font.setColor(Color.WHITE);
+        }
+
         batch.setColor(Color.WHITE);
 
         // Draw awareness meter
@@ -1350,27 +1381,6 @@ public class GameScreen implements Screen {
         textPanel.render(batch, font);
 
         batch.end();
-    }
-
-    private Texture getHotspotTexture(Hotspot hotspot) {
-        switch (hotspot.getType()) {
-            case ARROW_FORWARD:
-                return arrowTextures.get(Direction.NORTH);
-            case ARROW_BACK:
-                return arrowTextures.get(Direction.SOUTH);
-            case ARROW_LEFT:
-                return arrowTextures.get(Direction.WEST);
-            case ARROW_RIGHT:
-                return arrowTextures.get(Direction.EAST);
-            case DOOR:
-            case STAIRS_UP:
-            case STAIRS_DOWN:
-                return doorTexture;
-            case EXAMINE:
-                return null; // examine icons drawn separately
-            default:
-                return null;
-        }
     }
 
     @Override
@@ -1395,11 +1405,7 @@ public class GameScreen implements Screen {
         font.dispose();
         titleFont.dispose();
         for (Texture tex : roomTextures.values()) tex.dispose();
-        for (Texture tex : arrowTextures.values()) tex.dispose();
-        doorTexture.dispose();
-        examineIconTexture.dispose();
-        uiPanelTexture.dispose();
-        tooltipBackgroundTexture.dispose();
+        pixelTexture.dispose();
         textPanel.dispose();
         awarenessMeter.dispose();
         actionBar.dispose();

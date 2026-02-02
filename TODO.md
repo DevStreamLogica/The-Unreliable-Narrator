@@ -112,7 +112,7 @@ Current estimated completion: **~85-90%** (all gameplay systems complete; remain
 ## 6. Awareness / Threat System
 *Priority: CRITICAL*
 
-- [x] **Awareness meter UI** -- Top-right color-shifting bar (green->yellow->orange->red) with "15/80 DORMANT" label
+- [x] **Awareness meter UI** -- Thin 4px strip across full screen width at top edge (green->yellow->orange->red); hover near top shows "15/80 DORMANT" tooltip
 - [x] **Awareness cost mechanics:**
   - Movement: +1
   - Examine: +1
@@ -135,7 +135,7 @@ Current estimated completion: **~85-90%** (all gameplay systems complete; remain
 ## 7. Command / Interaction System
 *Priority: CRITICAL -- needs 2D input adaptation*
 
-- [x] **Mouse click hotspot navigation**
+- [x] **Mouse click hotspot navigation** -- Invisible hotspot bounds, hand cursor on hover
 - [x] **WASD/arrow keyboard input**
 - [x] **Adapted interaction commands for 2D** (replacing text parser with click/UI-based equivalents):
   - [x] Look (dynamic room descriptions displayed automatically)
@@ -255,19 +255,19 @@ Current estimated completion: **~85-90%** (all gameplay systems complete; remain
 ## 14. Text Display / UI System
 *Priority: HIGH -- replaces original text formatting*
 
-- [x] **Room title panel**
-- [x] **Room description panel** -- Now dynamic based on visit count and awareness
+- [x] **Room title** -- Top-left text with shadow, fades out after 3 seconds (no background panel)
+- [x] **Room description** -- Text with shadow above action bar, fades out after 5 seconds (no background panel)
 - [x] **Control hints display** -- Replaced by ActionBar with 5 buttons
-- [x] **Tooltip system**
+- [x] **Tooltip system** -- Dynamic-width tooltip with dark teal-black bg, muted gold border, cream text; clamped to screen bounds
+- [x] **Cursor feedback** -- Hand cursor on hotspot hover, arrow cursor otherwise
 - [x] **Dialogue boxes** -- TextPanel overlay for narrator text, suspect interviews, evidence display, tape transcripts
 - [x] **Typewriter text animation** -- Slow text reveal for narrative effect
 - [x] **Styled UI panels** -- TextPanel with dark background, borders, close button; TextButton with hover states
 - [x] **Table/grid layouts** -- Inventory, notebook, and suspect list layouts via TextPanel + TextButton
 - [x] **List formatting** -- Evidence list, tape list, topic list, suspect list
 - [x] **Section headers and separators** -- "=== SECTION ===" headers in panel text
-- [x] **Awareness meter** -- Color-shifting bar with level name label
-- [x] **Action bar** -- Bottom bar with INVENTORY, NOTEBOOK, SUSPECTS, HINT, ACCUSE buttons
-- [x] **Examine icons** -- Magnifying glass icons on examinable objects with hover glow
+- [x] **Awareness meter** -- 4px thin strip at top edge with hover tooltip
+- [x] **Action bar** -- Compact centered button cluster (5x100px), 60% opacity, not full-width
 
 ---
 
@@ -280,7 +280,7 @@ Current estimated completion: **~85-90%** (all gameplay systems complete; remain
 - [ ] **Tape item visuals** -- Icons for 7 videotapes
 - [~] **UI element art** -- Procedural TextButton/TextPanel/ActionBar exist; need polished art
 - [ ] **Environmental effect visuals** -- Shadows, darkness overlays, threat indicators
-- [x] **Awareness meter graphics** -- Color-shifting bar with background and border
+- [x] **Awareness meter graphics** -- Thin top-edge strip with color gradient and hover tooltip
 
 ---
 
@@ -373,8 +373,8 @@ Current estimated completion: **~85-90%** (all gameplay systems complete; remain
 ### `ui/` package
 - `TextButton.java` -- Clickable button with hover/disabled states
 - `TextPanel.java` -- Overlay panel with word-wrap, scroll, action buttons
-- `AwarenessMeter.java` -- Color-shifting bar
-- `ActionBar.java` -- Bottom action buttons
+- `AwarenessMeter.java` -- Thin top-edge strip with hover tooltip
+- `ActionBar.java` -- Compact centered button cluster
 
 ### Modified files
 - `Hotspot.java` -- Added EXAMINE type, objectName field
@@ -404,3 +404,30 @@ Current estimated completion: **~85-90%** (all gameplay systems complete; remain
 - `HotspotPositions.java` -- Already hardcoded to 1280x720.
 - `RoomManager.java` -- Already used 720 for Y conversion.
 - `Lwjgl3Launcher.java` -- Already set to fullscreen.
+
+### UI Overhaul -- Art-First Minimal Interface
+
+**Goal:** Remove cluttery placeholder overlays and redesign UI to let artwork speak. Minimal, art-first interface.
+
+**Changes:**
+
+- `GameScreen.java`:
+  - Removed hotspot overlay rendering (arrow textures, door textures, examine magnifying glass icons). Hotspot click detection is unchanged -- bounds still work invisibly.
+  - Removed `arrowTextures`, `doorTexture`, `examineIconTexture`, `uiPanelTexture`, `tooltipBackgroundTexture` fields and their generation/disposal.
+  - Added single `pixelTexture` (1x1 white) for dynamic-sized drawing.
+  - Room name: moved to top-left with text shadow, fades out after 3 seconds. Font scale reduced 1.8 -> 1.4. No background panel.
+  - Room description: text shadow, positioned above action bar, fades out after 5 seconds. No background panel.
+  - Tooltip: dynamic width based on text content, dark teal-black bg, muted gold border, cream text, clamped to screen bounds.
+  - Cursor: hand cursor when hovering any hotspot, arrow cursor otherwise (`Gdx.graphics.setSystemCursor()`).
+  - Fade timers reset on room navigation.
+- `ActionBar.java`:
+  - Bar height 45 -> 36, button height 35 -> 28, fixed 100px button width.
+  - Button cluster centered horizontally (~540px) instead of stretching full width.
+  - Bar background covers only the cluster + 12px padding.
+  - Opacity reduced 0.85 -> 0.6.
+  - Added `getBarHeight()` accessor for description positioning.
+- `AwarenessMeter.java`:
+  - Replaced 200x20 corner bar + text with 4px thin strip across full screen width at top edge.
+  - Removed dark background panel and text label from default view.
+  - Color gradient (green/yellow/orange/red) fills proportionally.
+  - Added hover detection: centered tooltip (e.g. "12/80 DORMANT") appears when mouse near top edge.
