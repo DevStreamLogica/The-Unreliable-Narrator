@@ -7,12 +7,11 @@ import java.util.*;
 
 public class RoomDescriptions {
 
-    // Examinable objects per room
     private static final Map<Room.RoomID, List<String>> EXAMINABLE_OBJECTS = new EnumMap<>(Room.RoomID.class);
 
     static {
         EXAMINABLE_OBJECTS.put(Room.RoomID.STUDY, Arrays.asList(
-            "desk", "drawers", "papers", "bookshelves", "window", "fireplace", "ashes", "under_desk"
+            "desk", "drawers", "papers", "bookshelves", "window", "fireplace", "poker", "ashes", "under_desk"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.PARLOR, Arrays.asList(
             "grandfather_clock", "briefcase", "fireplace"
@@ -20,17 +19,21 @@ public class RoomDescriptions {
         EXAMINABLE_OBJECTS.put(Room.RoomID.KITCHEN, Arrays.asList(
             "storage_cellar", "flour_tin"
         ));
-        EXAMINABLE_OBJECTS.put(Room.RoomID.GUEST_ROOMS, Arrays.asList(
-            "margarets_room", "james_room", "letter", "coat"
+        EXAMINABLE_OBJECTS.put(Room.RoomID.GUEST_ROOMS, Collections.emptyList());
+        EXAMINABLE_OBJECTS.put(Room.RoomID.JAMES_ROOM, Arrays.asList(
+            "coat", "wardrobe"
+        ));
+        EXAMINABLE_OBJECTS.put(Room.RoomID.MARGARET_ROOM, Arrays.asList(
+            "letter", "dresser"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.GROUNDSKEEPER_SHED, Arrays.asList(
             "logbook", "shelf"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.SERVANTS_QUARTERS, Arrays.asList(
-            "staircase", "floorboard"
+            "bedpost", "floorboard"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.CELLAR, Arrays.asList(
-            "flour_tin", "wine_rack"
+            "flour_sacks", "wine_rack"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.ENTRANCE, Collections.emptyList());
     }
@@ -39,7 +42,6 @@ public class RoomDescriptions {
         return EXAMINABLE_OBJECTS.getOrDefault(room, Collections.emptyList());
     }
 
-    /** Get a dynamic room description based on visit count and awareness. */
     public static String getDescription(Room.RoomID room, int visitCount, int awareness) {
         switch (room) {
             case ENTRANCE:
@@ -48,7 +50,7 @@ public class RoomDescriptions {
                 return "The familiar entrance hall. The chandelier flickers occasionally.";
 
             case STUDY:
-                if (visitCount <= 1) return "The crime scene. Harold's body has been removed, but chalk outlines remain. His desk faces large windows. A fireplace on the north wall still has warm ashes. Bookshelves line the east wall.";
+                if (visitCount <= 1) return "The crime scene. Harold's desk faces large windows. A fireplace on the north wall still has warm ashes. Bookshelves line the east wall.";
                 if (awareness >= 40) return "The study feels different. Papers on the desk have been rearranged since your last visit. Someone has been here.";
                 return "Harold's study. The crime scene. Every surface could hold a clue.";
 
@@ -64,17 +66,27 @@ public class RoomDescriptions {
 
             case GUEST_ROOMS:
                 if (visitCount <= 1) return "The guest wing upstairs. Margaret's room is to the left, James's room to the right. Both doors are slightly ajar.";
-                if (awareness >= 40) return "James's door is now locked. Margaret's room shows signs of hasty packing.";
-                return "The guest wing. Margaret's and James's rooms are here.";
+                if (awareness >= 40) return "The guest wing. The doors to both rooms stand open, waiting.";
+                return "The guest wing. Margaret's and James's rooms are accessible from here.";
+
+            case JAMES_ROOM:
+                if (visitCount <= 1) return "James's room is messier. The bed is unmade, an ashtray overflows with cigarette stubs. A glass of whisky, half-finished, sits on the nightstand. The wardrobe door hangs open.";
+                if (awareness >= 40) return "James's room feels tense. Someone was here recently.";
+                return "James's room. Messy and lived-in. The stale smell of cigarettes.";
+
+            case MARGARET_ROOM:
+                if (visitCount <= 1) return "Margaret's room is tidy but tense. A suitcase sits half-packed on the bed. A dresser with a letter sits against the wall.";
+                if (awareness >= 40) return "Margaret's room. The half-packed suitcase suggests she was planning to leave.";
+                return "Margaret's room. Neat and organized, unlike James's.";
 
             case GROUNDSKEEPER_SHED:
-                if (visitCount <= 1) return "A small building on the property edge. Tools hang on the walls. Daniel's logbook sits open on a rough wooden desk. A shelf holds various supplies.";
+                if (visitCount <= 1) return "A small shed accessible from the servants' quarters. Tools hang on the walls. Daniel's logbook sits open on a rough wooden desk. A shelf holds various supplies.";
                 if (awareness >= 40) return "The shed seems recently disturbed. Tools have been moved, and the logbook is now closed.";
                 return "Daniel's shed. It smells of earth and oil.";
 
             case SERVANTS_QUARTERS:
-                if (visitCount <= 1) return "The staff area. Simple but clean. A narrow staircase leads to the back of the house. A loose floorboard near the wall catches your eye.";
-                if (awareness >= 60) return "The servants' quarters feel abandoned. Eleanor and Reginald are avoiding this area.";
+                if (visitCount <= 1) return "The staff area. Simple but clean. A narrow bed with a worn wooden bedpost. A loose floorboard near the wall catches your eye.";
+                if (awareness >= 60) return "The servants' quarters feel abandoned. The staff have been avoiding this area.";
                 return "The servants' quarters. Modest and orderly.";
 
             case CELLAR:
@@ -87,7 +99,6 @@ public class RoomDescriptions {
         }
     }
 
-    /** Get display name for an examinable object. */
     public static String getObjectDisplayName(String objectId) {
         switch (objectId) {
             case "desk": return "Harold's Desk";
@@ -96,19 +107,23 @@ public class RoomDescriptions {
             case "bookshelves": return "Bookshelves";
             case "window": return "Window";
             case "fireplace": return "Fireplace";
+            case "poker": return "Fireplace Poker";
             case "ashes": return "Fireplace Ashes";
             case "under_desk": return "Under the Desk";
             case "grandfather_clock": return "Grandfather Clock";
             case "briefcase": return "Briefcase";
             case "storage_cellar": return "Storage Cellar Door";
             case "flour_tin": return "Flour Tin";
+            case "flour_sacks": return "Flour Sacks";
             case "margarets_room": return "Margaret's Room";
             case "james_room": return "James's Room";
             case "letter": return "Letter on Dresser";
             case "coat": return "James's Coat";
+            case "wardrobe": return "Wardrobe";
+            case "dresser": return "Dresser";
             case "logbook": return "Groundskeeper's Logbook";
             case "shelf": return "Shelf";
-            case "staircase": return "Servants' Staircase";
+            case "bedpost": return "Wooden Bedpost";
             case "floorboard": return "Loose Floorboard";
             case "wine_rack": return "Wine Rack";
             default: return objectId;

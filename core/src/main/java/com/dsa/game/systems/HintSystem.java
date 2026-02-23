@@ -1,15 +1,11 @@
 package com.dsa.game.systems;
 
 import com.dsa.game.state.*;
+import com.dsa.game.state.EntityAnomaly;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Progressive hint system with 3 tiers (vague -> moderate -> explicit).
- * Cycles through tiers on repeated hint requests.
- * Also provides one-time interview hints per suspect.
- */
 public class HintSystem {
 
     private final GameState state;
@@ -22,15 +18,10 @@ public class HintSystem {
         this.evidenceSystem = evidenceSystem;
     }
 
-    /**
-     * Returns a progressive hint based on game state.
-     * Cycles through 3 tiers: vague (0), moderate (1), explicit (2).
-     */
     public String getHint() {
         int tier = hintRequestCount % 3;
         hintRequestCount++;
 
-        // Determine which category of hint to give based on game progress
         if (state.getCollectedEvidence().isEmpty() && state.getCollectedTapes().isEmpty()) {
             return getStartHint(tier);
         }
@@ -41,6 +32,10 @@ public class HintSystem {
 
         if (state.getWatchedTapes().size() < state.getCollectedTapes().size()) {
             return getWatchTapeHint(tier);
+        }
+
+        if (!isCellarUnlocked() && state.getWatchedTapes().size() >= 2) {
+            return getCellarProgressionHint(tier);
         }
 
         if (!evidenceSystem.canAccuseJamesAndDaniel()) {
@@ -76,7 +71,14 @@ public class HintSystem {
                     if (!state.hasTape(t)) {
                         sb.append("- ").append(t.getTitle()).append(": hidden in the ")
                           .append(t.getHiddenInObject().replace('_', ' '))
-                          .append(" (").append(formatRoomName(t.getHiddenInRoom())).append(")\n");
+                          .append(" (").append(formatRoomName(t.getHiddenInRoom())).append(")");
+                        if (t.getHiddenInRoom() == com.dsa.game.navigation.Room.RoomID.CELLAR && !isCellarUnlocked()) {
+                            sb.append(" [SEALED]");
+                        }
+                        if (t.getHiddenInRoom() == com.dsa.game.navigation.Room.RoomID.MARGARET_ROOM && !isMargaretRoomUnlocked()) {
+                            sb.append(" [SEALED]");
+                        }
+                        sb.append("\n");
                     }
                 }
                 return sb.toString();
@@ -104,23 +106,23 @@ public class HintSystem {
             case 0:
                 return "You need more evidence. Keep examining objects and interviewing suspects.";
             case 1:
-                return "Evidence against James: " + jCount + "/3 needed. Evidence against Daniel: " + dCount + "/2 needed. " +
+                return "Evidence against James: " + jCount + "/6 found (need 3 to accuse). Evidence against Daniel: " + dCount + "/4 found (need 2 to accuse). " +
                        "Try rooms you haven't fully explored.";
             default:
                 StringBuilder sb = new StringBuilder();
                 sb.append("Evidence needed:\n");
-                sb.append("Against James (have ").append(jCount).append("/3): ");
+                sb.append("Against James (have ").append(jCount).append("/6): ");
                 if (!state.hasEvidence(Evidence.FINANCIAL_RECORDS)) sb.append("Financial Records (Study drawers), ");
-                if (!state.hasEvidence(Evidence.WILL_COPY)) sb.append("Will Copy (Guest Rooms letter), ");
+                if (!state.hasEvidence(Evidence.WILL_COPY)) sb.append("Will Copy (Parlor briefcase), ");
                 if (!state.hasEvidence(Evidence.TORN_LETTER)) sb.append("Torn Letter (Study fireplace ashes), ");
                 if (!state.hasTape(Tape.TAPE_ARGUMENT)) sb.append("Tape: Argument (Study under_desk), ");
-                if (!state.hasTape(Tape.TAPE_WILL_READING)) sb.append("Tape: Will Reading (Study bookshelves), ");
-                sb.append("\nAgainst Daniel (have ").append(dCount).append("/2): ");
+                if (!state.hasTape(Tape.TAPE_JAMES_INTERVIEW)) sb.append("Tape: James Interview (Study bookshelves), ");
+                if (!state.hasEvidence(Evidence.BLACKMAIL_NOTE)) sb.append("Blackmail Note (Margaret's Room letter), ");
+                sb.append("\nAgainst Daniel (have ").append(dCount).append("/4): ");
                 if (!state.hasEvidence(Evidence.GROUNDSKEEPER_LOG)) sb.append("Groundskeeper Log (Shed logbook), ");
-                if (!state.hasEvidence(Evidence.MUDDY_BOOTS)) sb.append("Muddy Boots (Kitchen), ");
-                if (!state.hasEvidence(Evidence.BLACKMAIL_NOTE)) sb.append("Blackmail Note (Servants' Quarters floorboard), ");
-                if (!state.hasTape(Tape.TAPE_DANIEL_MEETING)) sb.append("Tape: Daniel Meeting (Shed logbook), ");
-                if (!state.hasTape(Tape.TAPE_CELLAR_NOISES)) sb.append("Tape: Cellar (Cellar wine_rack), ");
+                if (!state.hasEvidence(Evidence.MUDDY_BOOTS)) sb.append("Muddy Boots (Shed shelf, 2nd exam), ");
+                if (!state.hasTape(Tape.TAPE_DANIEL_INTERVIEW)) sb.append("Tape: Daniel Interview (Shed logbook), ");
+                if (!state.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) sb.append("Tape: Margaret Interview (Kitchen storage_cellar), ");
                 return sb.toString();
         }
     }
@@ -136,10 +138,6 @@ public class HintSystem {
         }
     }
 
-    /**
-     * Returns a one-time interview hint for a specific suspect.
-     * Returns null if the hint has already been given for this suspect.
-     */
     public String getInterviewHint(Suspect suspect) {
         if (interviewHintsGiven.containsKey(suspect)) {
             return null;
@@ -153,12 +151,40 @@ public class HintSystem {
                 return "[Hint: Margaret knows more than she lets on. She heard things the night of the murder. Ask about the night and about James.]";
             case DANIEL:
                 return "[Hint: Daniel is guarded but nervous. His logbook has a missing entry. Ask about the grounds and his relationship with James.]";
-            case ELEANOR:
-                return "[Hint: Eleanor is the most cooperative. She found the sleeping powder and heard sounds the night of the murder. Show her evidence to get her perspective.]";
-            case REGINALD:
-                return "[Hint: Reginald knows the household routines. He may have noticed unusual behavior the night of the murder.]";
+            case MARCUS:
+                return "[Hint: Marcus is defensive about the lawsuit, but he witnessed events that night. Ask about the settlement dinner and what he heard before leaving.]";
+            case CHARLES:
+                return "[Hint: Charles is eager to help. He saw James heading to the study that night and knows about the will changes. Ask him about what Mr. Vance discovered and what he observed.]";
             default:
                 return null;
+        }
+    }
+
+    private boolean isCellarUnlocked() {
+        return state.getWatchedTapes().size() >= 4
+            && state.getCollectedEvidence().size() >= 5;
+    }
+
+    private boolean isMargaretRoomUnlocked() {
+        return state.hasAnomaly(EntityAnomaly.BREATHING_WALL);
+    }
+
+    private String getCellarProgressionHint(int tier) {
+        int tapes = state.getWatchedTapes().size();
+        int evidence = state.getCollectedEvidence().size();
+        switch (tier) {
+            case 0:
+                return "The cellar door is sealed shut. Something is keeping it closed. You need to dig deeper before it will open.";
+            case 1:
+                return "The cellar requires 4 watched tapes and 5 pieces of evidence to unlock. " +
+                       "You have " + tapes + " tapes and " + evidence + " evidence so far.";
+            default:
+                StringBuilder sb = new StringBuilder();
+                sb.append("Cellar gate: ").append(tapes).append("/4 tapes watched, ")
+                  .append(evidence).append("/5 evidence collected.\n");
+                if (tapes < 4) sb.append("Find and watch more tapes. Check the Study, Parlor, Kitchen, and Shed.\n");
+                if (evidence < 5) sb.append("Examine objects more thoroughly. Some reveal new clues on a second look.");
+                return sb.toString();
         }
     }
 

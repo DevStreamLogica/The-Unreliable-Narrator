@@ -10,49 +10,43 @@ public class EvidenceSystem {
         this.state = state;
     }
 
-    /** Collect evidence. Returns true if newly collected. */
     public boolean collect(Evidence e) {
         return state.collectEvidence(e);
     }
 
-    /** Collect tape. Returns true if newly collected. */
     public boolean collectTape(Tape t) {
         return state.collectTape(t);
     }
 
-    /** Watch a tape. Returns true if newly watched. */
     public boolean watchTape(Tape t) {
         return state.watchTape(t);
     }
 
-    /** Count evidence pointing at James. */
     public int getJamesEvidenceCount() {
         int count = 0;
         if (state.hasEvidence(Evidence.FINANCIAL_RECORDS)) count++;
         if (state.hasEvidence(Evidence.WILL_COPY)) count++;
         if (state.hasEvidence(Evidence.TORN_LETTER)) count++;
+        if (state.hasEvidence(Evidence.BLACKMAIL_NOTE)) count++; // James planted it to frame Margaret
         if (state.hasTape(Tape.TAPE_ARGUMENT)) count++;
-        if (state.hasTape(Tape.TAPE_WILL_READING)) count++;
+        if (state.hasTape(Tape.TAPE_JAMES_INTERVIEW)) count++;
         return count;
     }
 
-    /** Count evidence pointing at Daniel. */
     public int getDanielEvidenceCount() {
         int count = 0;
         if (state.hasEvidence(Evidence.GROUNDSKEEPER_LOG)) count++;
         if (state.hasEvidence(Evidence.MUDDY_BOOTS)) count++;
-        if (state.hasEvidence(Evidence.BLACKMAIL_NOTE)) count++;
-        if (state.hasTape(Tape.TAPE_DANIEL_MEETING)) count++;
-        if (state.hasTape(Tape.TAPE_CELLAR_NOISES)) count++;
+        // BLACKMAIL_NOTE moved to James's evidence - he planted it, not Daniel
+        if (state.hasTape(Tape.TAPE_DANIEL_INTERVIEW)) count++;
+        if (state.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) count++;
         return count;
     }
 
-    /** Can accuse James and Daniel together (the correct solution). */
     public boolean canAccuseJamesAndDaniel() {
         return getJamesEvidenceCount() >= 3 && getDanielEvidenceCount() >= 2;
     }
 
-    /** Build inventory text for display. */
     public String getInventoryText() {
         StringBuilder sb = new StringBuilder();
         sb.append("=== COLLECTED EVIDENCE ===\n\n");

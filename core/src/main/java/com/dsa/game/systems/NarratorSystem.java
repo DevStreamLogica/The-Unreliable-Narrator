@@ -2,9 +2,13 @@ package com.dsa.game.systems;
 
 import com.dsa.game.data.NarratorText;
 import com.dsa.game.data.NarratorText.Mood;
+import com.dsa.game.state.Contradiction;
+import com.dsa.game.state.Evidence;
+import com.dsa.game.state.EntityAnomaly;
 import com.dsa.game.state.GameState;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -91,7 +95,7 @@ public class NarratorSystem {
         return cues[index];
     }
 
-    /** Prepends mood-appropriate commentary prefix to game text. */
+    /** Prepends mood-appropriate commentary prefix to game text, with possible distortion. */
     public String filterText(String text) {
         StringBuilder sb = new StringBuilder();
 
@@ -111,11 +115,122 @@ public class NarratorSystem {
             sb.append(text);
         }
 
+        // Maybe append a narrator distortion
+        String distortion = maybeGetDistortion();
+        if (distortion != null) {
+            sb.append("\n\n[The narrator interjects: \"").append(distortion).append("\"]");
+            state.addNarratorDistortion(distortion);
+
+            // Auto-discover narrator contradictions if player has contradicting evidence
+            checkDistortionContradictions(distortion);
+        }
+
         return sb.toString();
+    }
+
+    /**
+     * Returns a narrator distortion with probability based on awareness.
+     * 20% chance of mild at awareness 40+, 30% chance of severe at 60+.
+     */
+    public String maybeGetDistortion() {
+        int awareness = state.getAwareness();
+        if (awareness < 40) return null;
+
+        if (awareness >= 60) {
+            if (random.nextInt(100) < 30) {
+                String[] severe = NarratorText.getSevereDistortions();
+                return severe[random.nextInt(severe.length)];
+            }
+        }
+
+        if (random.nextInt(100) < 20) {
+            String[] mild = NarratorText.getMildDistortions();
+            return mild[random.nextInt(mild.length)];
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks if a distortion text contradicts evidence the player already has,
+     * and auto-discovers the narrator contradiction if so.
+     */
+    private void checkDistortionContradictions(String distortion) {
+        Map<String, Contradiction> map = NarratorText.getDistortionContradictions();
+        for (Map.Entry<String, Contradiction> entry : map.entrySet()) {
+            if (distortion.contains(entry.getKey())) {
+                Contradiction c = entry.getValue();
+                if (state.hasContradiction(c)) continue;
+
+                // Check if player has the contradicting evidence
+                boolean hasContradictingEvidence = false;
+                switch (c) {
+                    case NARRATOR_WEAPON:
+                        hasContradictingEvidence = state.hasEvidence(Evidence.LETTER_OPENER);
+                        break;
+                    case NARRATOR_BOOTS:
+                        hasContradictingEvidence = state.hasEvidence(Evidence.MUDDY_BOOTS);
+                        break;
+                    case NARRATOR_LETTER:
+                        hasContradictingEvidence = state.hasEvidence(Evidence.TORN_LETTER);
+                        break;
+                    case NARRATOR_TIME:
+                        hasContradictingEvidence = state.hasEvidence(Evidence.SLEEPING_POWDER);
+                        break;
+                    default:
+                        break;
+                }
+
+                if (hasContradictingEvidence) {
+                    state.discoverContradiction(c);
+                }
+            }
+        }
     }
 
     public boolean isFilterEnabled() { return filterEnabled; }
     public void setFilterEnabled(boolean enabled) { this.filterEnabled = enabled; }
+
+    /** Returns channeling intro based on whether this is the first interview. */
+    public String getChannelingIntro(boolean isFirstInterview) {
+        Mood mood = getCurrentMood();
+        if (isFirstInterview) {
+            return NarratorText.getChannelingFirstIntro(mood);
+        }
+        return NarratorText.getChannelingReturnIntro(mood);
+    }
+
+    /** 20% chance of bleed-through. Returns null if no bleed. */
+    public String maybeGetChannelingBleedThrough() {
+        if (random.nextInt(5) != 0) return null;
+        String[] lines = NarratorText.getChannelingBleedThrough();
+        return lines[random.nextInt(lines.length)];
+    }
+
+    /** Returns channeling end text for current mood. */
+    public String getChannelingEnd() {
+        return NarratorText.getChannelingEnd(getCurrentMood());
+    }
+
+    /**
+     * Returns a narrator slip ("I remember...") with 20% probability if 3+ anomalies found.
+     * Discovering the slip also registers the NARRATOR_I_SLIP anomaly.
+     * Returns null otherwise.
+     */
+    public String maybeGetNarratorSlip() {
+        if (state.getAnomalyCount() < 3) return null;
+        if (state.hasAnomaly(EntityAnomaly.NARRATOR_I_SLIP)) return null;
+        if (random.nextInt(5) != 0) return null; // 20% chance
+
+        state.discoverAnomaly(EntityAnomaly.NARRATOR_I_SLIP);
+        return "[The narrator's voice wavers on the tape.]\n\n" +
+            "\"I remember when the wall was -- \"\n\n" +
+            "[A long pause. Static. Then, carefully:]\n\n" +
+            "\"...Forgive me. I misspoke. I meant to say: Arthur's notes mention " +
+            "that the wall was sealed decades ago. I have no personal memory of this place. " +
+            "Of course I don't. I'm merely a voice on a tape.\"\n\n" +
+            "[ANOMALY DISCOVERED: Narrator 'I' Slip -- Who is the narrator, really?]";
+    }
 
     /**
      * Returns an atmospheric event with 25% probability if awareness >= 40.

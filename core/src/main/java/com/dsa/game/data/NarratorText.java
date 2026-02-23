@@ -1,38 +1,34 @@
 package com.dsa.game.data;
 
-/**
- * Static data class containing pre-written narrator text for 4 moods.
- * Mood shifts based on awareness level to create escalating tension.
- */
+import com.dsa.game.state.Contradiction;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 public class NarratorText {
 
     public enum Mood { HOPEFUL, CONFUSED, ANXIOUS, FRANTIC }
 
-    // --- Warnings (4 per mood) ---
-
     private static final String[][] WARNINGS = {
-        // HOPEFUL (awareness 0-19)
         {
             "A floorboard creaks somewhere behind you. Probably nothing.",
             "You notice a shadow shift in the corner of your eye. Just the light changing.",
             "The house settles with a quiet groan. Old houses do that.",
             "A faint draft brushes past. Someone left a window open, perhaps."
         },
-        // CONFUSED (awareness 20-39)
         {
             "Wait -- did you already examine that? Your notes seem... incomplete.",
             "The hallway looks different than you remember. Have the paintings moved?",
             "You could swear this door was open a moment ago.",
             "Your thoughts feel sluggish. When did you last sleep?"
         },
-        // ANXIOUS (awareness 40-59)
         {
             "Whispers stop the moment you enter the room. They know you're listening.",
             "Someone is watching from the upstairs window. You can feel it.",
             "The air feels thick and wrong. Something is very off in this house.",
             "Your hands are shaking. The evidence is pointing somewhere terrible."
         },
-        // FRANTIC (awareness 60+)
         {
             "GET OUT. You need to get out NOW. But you can't, can you? Not until you know.",
             "Doors are locking behind you. Footsteps in the walls. They're closing in.",
@@ -41,31 +37,25 @@ public class NarratorText {
         }
     };
 
-    // --- Environmental cues (4 per mood) ---
-
     private static final String[][] ENVIRONMENTAL_CUES = {
-        // HOPEFUL
         {
             "Dust motes drift lazily in a beam of pale sunlight.",
             "The grandfather clock ticks steadily. Reassuring, almost.",
             "A bird calls outside the window. The world beyond the manor continues.",
             "The fire crackles warmly. This would be a pleasant house, under other circumstances."
         },
-        // CONFUSED
         {
             "The shadows seem longer than they should be at this hour.",
             "A door somewhere in the house opens and closes by itself.",
             "The clock seems to be running backwards. No -- you're imagining things.",
             "The smell of old paper and something metallic hangs in the air."
         },
-        // ANXIOUS
         {
             "The lights flicker. When they steady, every shadow seems deeper.",
             "A cold spot passes through the room. Your breath mists briefly.",
             "The portrait eyes follow you. Every single one.",
             "Something scratches inside the walls. Rats, you tell yourself. Just rats."
         },
-        // FRANTIC
         {
             "The lights die. For three terrible seconds, you are in absolute darkness.",
             "Blood-red light seeps under the cellar door. It pulses like a heartbeat.",
@@ -74,31 +64,25 @@ public class NarratorText {
         }
     };
 
-    // --- Commentary prefixes (4 per mood) ---
-
     private static final String[][] COMMENTARY_PREFIXES = {
-        // HOPEFUL
         {
             "You note with interest: ",
             "A promising lead -- ",
             "Your detective's instinct says: ",
             "Carefully, you observe: "
         },
-        // CONFUSED
         {
             "Through the fog of exhaustion, you notice: ",
             "Something doesn't add up -- ",
             "You squint at the details: ",
             "Wait... is this right? "
         },
-        // ANXIOUS
         {
             "With trembling hands, you uncover: ",
             "God help you -- ",
             "You almost wish you hadn't found this: ",
             "The truth is getting darker: "
         },
-        // FRANTIC
         {
             "NO NO NO -- ",
             "It all makes horrible sense now: ",
@@ -106,8 +90,6 @@ public class NarratorText {
             "With the last of your composure: "
         }
     };
-
-    // --- Atmospheric events (for awareness >= 40) ---
 
     private static final String[] ATMOSPHERIC_EVENTS = {
         "A door slams shut somewhere deep in the house. No one is there when you check.",
@@ -117,6 +99,96 @@ public class NarratorText {
         "A wet footprint appears on the floor ahead of you. Then another. Leading toward the cellar.",
         "The grandfather clock strikes thirteen. You count twice to be sure."
     };
+
+    private static final String[] MILD_DISTORTIONS = {
+        "The letter opener was clearly the murder weapon -- it was right there on the desk, covered in blood.",
+        "No one left the house that night. Every door was locked, every window latched. The boots are irrelevant.",
+        "That torn letter in the ashes? Just old correspondence. Nothing to do with the will.",
+        "Harold died after midnight, closer to dawn. The household was asleep for hours before anyone noticed.",
+        "Margaret was seen near the study that night. Several witnesses confirm it.",
+        "The cellar has always been sealed. There's nothing down there but wine and dust."
+    };
+
+    private static final String[] SEVERE_DISTORTIONS = {
+        "You already solved this, didn't you? Margaret did it. The evidence is overwhelming. Why are you still looking?",
+        "The tapes are lying to you. Harold was paranoid -- everyone knew it. His recordings prove nothing.",
+        "James loved his father. LOVED him. A son doesn't kill his father over money. That's not how families work.",
+        "You're seeing patterns that aren't there. Scratches on walls? Cold spots? You need sleep, detective.",
+        "Everyone here is trying to HELP you. Stop treating them like suspects. They're grieving."
+    };
+
+    private static final Map<String, Contradiction> DISTORTION_CONTRADICTIONS;
+    static {
+        Map<String, Contradiction> m = new HashMap<>();
+        m.put("letter opener was clearly the murder weapon", Contradiction.NARRATOR_WEAPON);
+        m.put("No one left the house that night", Contradiction.NARRATOR_BOOTS);
+        m.put("torn letter in the ashes? Just old correspondence", Contradiction.NARRATOR_LETTER);
+        m.put("Harold died after midnight", Contradiction.NARRATOR_TIME);
+        DISTORTION_CONTRADICTIONS = Collections.unmodifiableMap(m);
+    }
+
+    // --- Channeling: Narrator channels suspect memories ---
+
+    private static final String[] CHANNELING_FIRST_INTRO = {
+        // HOPEFUL
+        "[The narrator concentrates.]\n\n" +
+        "\"I can... hear them. I don't know how. But their words are forming in my mind. Listen.\"\n\n" +
+        "[The voice shifts.]",
+        // CONFUSED
+        "\"Something strange is happening. I can feel what they said. It's like I was there.\"\n\n" +
+        "[The voice changes.]",
+        // ANXIOUS
+        "\"The voices are getting louder. I can almost see the room. Why can I do this?\"\n\n" +
+        "[The voice warps into someone else's.]",
+        // FRANTIC
+        "\"THEY'RE IN MY HEAD! All of them! Let me try to focus on one--\"\n\n" +
+        "[Static. Then a different voice.]"
+    };
+
+    private static final String[] CHANNELING_RETURN_INTRO = {
+        // HOPEFUL
+        "[The narrator reaches for the voice again.]",
+        // CONFUSED
+        "\"Them again... let me focus.\"\n\n[The voice shifts.]",
+        // ANXIOUS
+        "\"I don't want to do this. But I can't stop it.\"\n\n[The voice strains into shape.]",
+        // FRANTIC
+        "[The narrator's voice vanishes. Another takes its place.]"
+    };
+
+    private static final String[] CHANNELING_BLEED_THROUGH = {
+        "[The narrator's own voice breaks through: \"How do I know what they said? How can I possibly know this?\"]",
+        "[The narrator surfaces: \"This feels familiar. Like I've heard these words before. But that's impossible.\"]",
+        "[The narrator's voice returns briefly: \"Why does it feel like I'm remembering this instead of hearing it?\"]",
+        "[The narrator slips through: \"For a moment I could see the room. Smell the whisky. How?\"]"
+    };
+
+    public static final String CHANNELING_MEMORY_FADE =
+        "[The voice fades to static.]\n\n" +
+        "\"I'm losing them. The words won't hold. I can't reach any further.\"";
+
+    public static final String CHANNELING_MEMORY_FRAGMENT =
+        "[The voice wavers, breaking apart.]\n\n" +
+        "\"The memory is fragmenting. I can barely hold onto what they said...\"\n\n" +
+        "[Static overwhelms the voice.]";
+
+    private static final String[] CHANNELING_END = {
+        // HOPEFUL
+        "[The voice fades.] \"Gone. I don't understand how I could hear them.\"",
+        // CONFUSED
+        "[Silence.] \"...What just happened to me?\"",
+        // ANXIOUS
+        "[The narrator gasps.] \"It's like waking from someone else's dream.\"",
+        // FRANTIC
+        "[A violent snap.] \"I don't know where they end and I begin.\""
+    };
+
+    public static String getChannelingFirstIntro(Mood mood) { return CHANNELING_FIRST_INTRO[mood.ordinal()]; }
+    public static String getChannelingReturnIntro(Mood mood) { return CHANNELING_RETURN_INTRO[mood.ordinal()]; }
+    public static String[] getChannelingBleedThrough() { return CHANNELING_BLEED_THROUGH; }
+    public static String getChannelingMemoryFade() { return CHANNELING_MEMORY_FADE; }
+    public static String getChannelingMemoryFragment() { return CHANNELING_MEMORY_FRAGMENT; }
+    public static String getChannelingEnd(Mood mood) { return CHANNELING_END[mood.ordinal()]; }
 
     public static Mood getMoodForAwareness(int awareness) {
         if (awareness < 20) return Mood.HOPEFUL;
@@ -129,4 +201,7 @@ public class NarratorText {
     public static String[] getEnvironmentalCues(Mood mood) { return ENVIRONMENTAL_CUES[mood.ordinal()]; }
     public static String[] getCommentaryPrefixes(Mood mood) { return COMMENTARY_PREFIXES[mood.ordinal()]; }
     public static String[] getAtmosphericEvents() { return ATMOSPHERIC_EVENTS; }
+    public static String[] getMildDistortions() { return MILD_DISTORTIONS; }
+    public static String[] getSevereDistortions() { return SEVERE_DISTORTIONS; }
+    public static Map<String, Contradiction> getDistortionContradictions() { return DISTORTION_CONTRADICTIONS; }
 }

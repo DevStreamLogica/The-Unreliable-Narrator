@@ -774,10 +774,10 @@ public class RoomManager {
             "The guest wing. Margaret and James stayed here the night of the murder.");
 
         createRoom(Room.RoomID.GROUNDSKEEPER_SHED, "Groundskeeper's Shed",
-            "James Harlow's domain for 29 years. Tools and logbooks fill the small space.");
+            "Daniel's domain for 15 years. Tools and logbooks fill the small space.");
 
         createRoom(Room.RoomID.SERVANTS_QUARTERS, "Servants' Quarters",
-            "Staff area with hidden passages. The way servants moved unseen.");
+            "Staff area. Simple but clean. A narrow bed with a worn wooden bedpost.");
 
         createRoom(Room.RoomID.CELLAR, "The Cellar",
             "Dark storage area beneath the kitchen. Flour sacks and wine racks.");
@@ -819,26 +819,17 @@ public class RoomManager {
         entrance.addHotspot(HotspotPositions.createStandardHotspot(
             Hotspot.HotspotType.STAIRS_UP, Direction.UP, Room.RoomID.GUEST_ROOMS));
 
-        // STUDY connections
+        // STUDY connections (east wing - crime scene)
         study.addConnection(Direction.WEST, Room.RoomID.ENTRANCE);
-        study.addConnection(Direction.NORTH, Room.RoomID.PARLOR);
 
         study.addHotspot(HotspotPositions.createStandardHotspot(
             Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.ENTRANCE));
-        study.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.DOOR, Direction.NORTH, Room.RoomID.PARLOR));
 
-        // PARLOR connections
+        // PARLOR connections (west wing - formal guest room)
         parlor.addConnection(Direction.EAST, Room.RoomID.ENTRANCE);
-        parlor.addConnection(Direction.SOUTH, Room.RoomID.STUDY);
-        parlor.addConnection(Direction.NORTH, Room.RoomID.SERVANTS_QUARTERS);
 
         parlor.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_RIGHT, Direction.EAST, Room.RoomID.ENTRANCE));
-        parlor.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.DOOR, Direction.SOUTH, Room.RoomID.STUDY));
-        parlor.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_FORWARD, Direction.NORTH, Room.RoomID.SERVANTS_QUARTERS));
+            Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.ENTRANCE));
 
         // KITCHEN connections
         kitchen.addConnection(Direction.SOUTH, Room.RoomID.ENTRANCE);
@@ -858,20 +849,17 @@ public class RoomManager {
         guestRooms.addHotspot(HotspotPositions.createStandardHotspot(
             Hotspot.HotspotType.STAIRS_DOWN, Direction.DOWN, Room.RoomID.ENTRANCE));
 
-        // SHED connections (exterior - only back to entrance area)
-        shed.addConnection(Direction.SOUTH, Room.RoomID.ENTRANCE);
+        // SHED connections (connects back to servants' quarters)
+        shed.addConnection(Direction.EAST, Room.RoomID.SERVANTS_QUARTERS);
 
         shed.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.ENTRANCE));
+            Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.SERVANTS_QUARTERS));
 
-        // SERVANTS' QUARTERS connections
-        servants.addConnection(Direction.SOUTH, Room.RoomID.PARLOR);
+        // SERVANTS' QUARTERS connections (only accessible from Kitchen)
         servants.addConnection(Direction.EAST, Room.RoomID.KITCHEN);
 
         servants.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH, Room.RoomID.PARLOR));
-        servants.addHotspot(HotspotPositions.createStandardHotspot(
-            Hotspot.HotspotType.ARROW_RIGHT, Direction.EAST, Room.RoomID.KITCHEN));
+            Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.KITCHEN));
 
         // CELLAR connections
         cellar.addConnection(Direction.UP, Room.RoomID.KITCHEN);
@@ -1154,39 +1142,49 @@ public class GameScreen implements Screen {
                                         |
                                        [UP]
                                         |
-GROUNDSKEEPER'S                         |
-    SHED ----[SOUTH]---- ENTRANCE ----[NORTH]---- KITCHEN
-                            |                        |
-                     [WEST] | [EAST]            [DOWN]
-                            |                        |
-                    PARLOR--+--STUDY              CELLAR
-                        |
-                    [NORTH]
-                        |
-                SERVANTS' QUARTERS
+                                        |
+                         ENTRANCE ----[NORTH]---- KITCHEN ----[WEST]---- SERVANTS' ----[WEST]---- GROUNDSKEEPER'S
+                         /   |   \                    |                   QUARTERS                     SHED
+                   [WEST]    |    [EAST]          [DOWN]
+                       /     |     \                  |
+                  PARLOR     |     STUDY           CELLAR
+                             |
+                    (Parlor and Study are
+                     separate wings - not
+                     connected to each other)
 ```
 
 ### Connection Table
 
-| From | Direction | To |
-|------|-----------|-----|
-| ENTRANCE | EAST | STUDY |
-| ENTRANCE | WEST | PARLOR |
-| ENTRANCE | NORTH | KITCHEN |
-| ENTRANCE | UP | GUEST_ROOMS |
-| STUDY | WEST | ENTRANCE |
-| STUDY | NORTH | PARLOR |
-| PARLOR | EAST | ENTRANCE |
-| PARLOR | SOUTH | STUDY |
-| PARLOR | NORTH | SERVANTS_QUARTERS |
-| KITCHEN | SOUTH | ENTRANCE |
-| KITCHEN | WEST | SERVANTS_QUARTERS |
-| KITCHEN | DOWN | CELLAR |
-| GUEST_ROOMS | DOWN | ENTRANCE |
-| SERVANTS_QUARTERS | SOUTH | PARLOR |
-| SERVANTS_QUARTERS | EAST | KITCHEN |
-| CELLAR | UP | KITCHEN |
-| GROUNDSKEEPER_SHED | SOUTH | ENTRANCE |
+| From | Direction | To | Gate |
+|------|-----------|-----|------|
+| ENTRANCE | EAST | STUDY | None |
+| ENTRANCE | WEST | PARLOR | None |
+| ENTRANCE | NORTH | KITCHEN | None |
+| ENTRANCE | UP | GUEST_ROOMS | None |
+| STUDY | WEST | ENTRANCE | None |
+| PARLOR | EAST | ENTRANCE | None |
+| KITCHEN | SOUTH | ENTRANCE | None |
+| KITCHEN | WEST | SERVANTS_QUARTERS | None |
+| KITCHEN | DOWN | CELLAR | **Act 2: 4+ tapes watched AND 5+ evidence** |
+| GUEST_ROOMS | DOWN | ENTRANCE | None |
+| GUEST_ROOMS | ENTER | MARGARET_ROOM | **Act 3: BREATHING_WALL anomaly** |
+| SERVANTS_QUARTERS | EAST | KITCHEN | None |
+| CELLAR | UP | KITCHEN | None |
+| GROUNDSKEEPER_SHED | EAST | SERVANTS_QUARTERS | None |
+| SERVANTS_QUARTERS | WEST | GROUNDSKEEPER_SHED | None |
+
+### Navigation Gates
+
+The game uses a three-act structure with navigation gates:
+
+**Act 1 (8 rooms):** Entrance, Study, Parlor, Kitchen, Guest Rooms, James's Room, Servants' Quarters, Groundskeeper's Shed -- all accessible from the start.
+
+**Act 2 -- Cellar:** Sealed until the player has watched 4+ tapes AND collected 5+ evidence. The narrator provides mood-varied text explaining the door won't open. Implementation: `isCellarUnlocked()` in GameScreen.java checks `gameState.getWatchedTapes().size() >= 4 && gameState.getCollectedEvidence().size() >= 5`.
+
+**Act 3 -- Margaret's Room:** Sealed until the BREATHING_WALL anomaly is discovered (found on 2nd examination of cellar wine_rack). Implementation: `isMargaretRoomUnlocked()` checks `gameState.hasAnomaly(EntityAnomaly.BREATHING_WALL)`.
+
+When a player attempts to enter a sealed room, the narrator delivers a mood-appropriate message (HOPEFUL/CONFUSED/ANXIOUS/FRANTIC) explaining the door is sealed. This text escalates in intensity with awareness level.
 
 ---
 

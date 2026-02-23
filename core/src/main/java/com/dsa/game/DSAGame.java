@@ -6,7 +6,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.dsa.game.screens.TitleScreen;
 
-/** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class DSAGame extends Game {
     public static final int SCREEN_WIDTH = 1280;
     public static final int SCREEN_HEIGHT = 720;

@@ -3,13 +3,14 @@ package com.dsa.game.state;
 import com.dsa.game.navigation.Room;
 
 public enum Tape {
-    TAPE_ARGUMENT("Harold & James Argument", Room.RoomID.STUDY, "desk"),
-    TAPE_PHONE_CALL("Late Night Phone Call", Room.RoomID.PARLOR, "grandfather_clock"),
-    TAPE_MARGARET_CONFESSION("Margaret's Confession", Room.RoomID.GUEST_ROOMS, "margarets_room"),
-    TAPE_DANIEL_MEETING("Daniel's Secret Meeting", Room.RoomID.GROUNDSKEEPER_SHED, "logbook"),
-    TAPE_WILL_READING("Will Reading Preview", Room.RoomID.STUDY, "bookshelves"),
-    TAPE_KITCHEN_WHISPERS("Kitchen Whispers", Room.RoomID.KITCHEN, "storage_cellar"),
-    TAPE_CELLAR_NOISES("Cellar Recording", Room.RoomID.CELLAR, "wine_rack");
+    TAPE_ARGUMENT("Harold & James Argument", Room.RoomID.STUDY, "under_desk"),
+    TAPE_JAMES_INTERVIEW("James Vance - Police Interview", Room.RoomID.STUDY, "bookshelves"),
+    TAPE_DANIEL_INTERVIEW("Daniel Hobbs - Police Interview", Room.RoomID.GROUNDSKEEPER_SHED, "logbook"),
+    TAPE_MARGARET_INTERVIEW("Margaret Vance - Police Interview", Room.RoomID.KITCHEN, "storage_cellar"),
+    TAPE_MARCUS_INTERVIEW("Marcus Blackwood - Police Interview", Room.RoomID.PARLOR, "briefcase"),
+    TAPE_CHARLES_INTERVIEW("Charles Webb - Police Interview", Room.RoomID.PARLOR, "grandfather_clock"),
+    TAPE_MARGARET_ACCOUNT("Margaret's Personal Account", Room.RoomID.MARGARET_ROOM, "dresser"),
+    TAPE_ARTHUR_DEATH("The Opening", Room.RoomID.CELLAR, "wine_rack");
 
     private final String title;
     private final Room.RoomID hiddenInRoom;

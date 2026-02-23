@@ -49,7 +49,6 @@ Examinable objects must be **visually identifiable** — a desk should look like
 - **Stone fireplace** — left side of the room, large. Embers still glowing, ashes visible in the grate (torn letter fragments hidden here)
 - **Ashes** — in the fireplace grate (separate clickable area from the fireplace)
 - A **doorway** visible somewhere (leads to Parlor)
-- **Chalk outline** on the floor where Harold's body was — this is the crime scene
 - Overall feel: a rich man's study, now disturbed and ominous
 
 **Navigation exits:**
@@ -73,8 +72,6 @@ Examinable objects must be **visually identifiable** — a desk should look like
 
 **Navigation exits:**
 - Right: Entrance (arrow, right edge)
-- Forward: Servants' Quarters (arrow, top center)
-- Door: Study (door hotspot, center of screen)
 
 ---
 
@@ -83,8 +80,8 @@ Examinable objects must be **visually identifiable** — a desk should look like
 **Perspective:** Standing in the kitchen, looking across the room.
 
 **Examinable objects (2):**
-- **Storage cellar door** — a narrow door in the floor or wall, center of the image. This is both an examinable object (tape hidden on a shelf inside it) and a navigation point (leads down to Cellar)
-- **Flour tin** — on a shelf, left side of the room. Large metal tin among other containers/spices. (Sleeping powder hidden inside)
+- **Storage cellar door** — a narrow door in the floor or wall, center of the image. A shelf beside it holds tea supplies (sleeping powder hidden behind a canister). Tape 4 (Margaret's Police Interview) hidden on shelf beside the door. Also a navigation point (leads down to Cellar). Cold Spot anomaly discovered on 2nd exam.
+- **Flour tin** — on a shelf, left side of the room. Large metal tin among other containers/spices. (Just flour inside, but shows fingerprints in the dust)
 
 **Other visual elements:**
 - Large industrial kitchen — copper pots hanging from overhead racks, counters, a stove
@@ -98,27 +95,70 @@ Examinable objects must be **visually identifiable** — a desk should look like
 
 ---
 
-## 5. Guest Rooms — `guest_rooms.png`
+## 5. Guest Rooms Hallway — `guest_rooms.png`
 
 **Perspective:** Standing in the upstairs hallway, looking at two bedroom doors.
 
-**Examinable objects (4):**
-- **Margaret's room/doorway** — left side. Through the ajar door you can see: a tidy room, a half-packed suitcase on the bed, a nightstand with a tape recorder. A dresser visible with a folded letter/note on it.
-- **James's room/doorway** — right side. Through the ajar door: messy, unmade bed, overflowing ashtray, half-finished whisky glass. Wardrobe door hanging open with a coat on it (bloodstained cuff).
-- **Letter on dresser** — inside Margaret's room, on the dresser surface
-- **James's coat** — inside James's room, hanging on the wardrobe door
+**Examinable objects:** None — this is a navigation hub to access the individual bedrooms.
 
 **Other visual elements:**
-- The hallway between the two rooms — carpet runner, maybe wall sconces
-- The contrast between Margaret's neatness and James's chaos tells a story
-- Feel: upstairs, quieter, more intimate
+- **Margaret's bedroom door** — left side of the hallway, slightly ajar
+- **James's bedroom door** — right side of the hallway, slightly ajar
+- Hallway carpet runner, wall sconces, dim upstairs lighting
+- Dark stains visible on the carpet near Margaret's door
+- Staircase going down visible
+- Feel: upstairs, quieter, more intimate. The two doors invite investigation.
 
 **Navigation exits:**
 - Down: Entrance (stairs hotspot, center of screen)
+- Left door: Margaret's Room (door hotspot, left side)
+- Right door: James's Room (door hotspot, right side)
 
 ---
 
-## 6. Groundskeeper's Shed — `groundskeeper_shed.png`
+## 6. James's Room — `james_room.png`
+
+**Perspective:** Standing inside James's bedroom, looking into the room.
+
+**Examinable objects (2):**
+- **James's coat** — hanging on the wardrobe door, right side of room. The right sleeve cuff has a dark bloodstain visible.
+- **Wardrobe** — large wardrobe with door hanging open, showing hastily thrown clothes inside
+
+**Other visual elements:**
+- Unmade bed, sheets tangled
+- Ashtray overflowing with cigarette stubs on nightstand
+- Half-finished glass of whisky on nightstand
+- Messy, lived-in appearance — clothes on floor, general disorder
+- Door back to hallway visible
+- Feel: masculine chaos, alcohol and tobacco smell, someone living without care
+
+**Navigation exits:**
+- Back: Guest Rooms hallway (door hotspot, left side)
+
+---
+
+## 7. Margaret's Room — `margaret_room.png`
+
+**Perspective:** Standing inside Margaret's bedroom, looking into the room.
+
+**Examinable objects (2):**
+- **Letter on dresser** — a folded note on the dresser surface (blackmail note)
+- **Dresser** — elegant dresser with a tape recorder on the nightstand beside it. Half-empty bottle of port wine on top. Shoes with dark stains visible near the door.
+
+**Other visual elements:**
+- Tidy room, but tense atmosphere
+- Half-packed suitcase on the bed (she was planning to leave)
+- Neatly made bed despite the suitcase
+- Contrast to James's messy room
+- Door back to hallway visible
+- Feel: organized but anxious, someone preparing to flee
+
+**Navigation exits:**
+- Back: Guest Rooms hallway (door hotspot, right side)
+
+---
+
+## 8. Groundskeeper's Shed — `groundskeeper_shed.png`
 
 **Perspective:** Standing inside a small outbuilding, looking at the workbench.
 
@@ -133,17 +173,17 @@ Examinable objects must be **visually identifiable** — a desk should look like
 - Feel: earthy, cramped, functional. Smells of soil and oil.
 
 **Navigation exits:**
-- Back: Entrance (arrow, bottom center)
+- Back: Servants' Quarters (arrow, right edge)
 
 ---
 
-## 7. Servants' Quarters — `servants_quarters.png`
+## 9. Servants' Quarters — `servants_quarters.png`
 
 **Perspective:** Standing in the staff living area.
 
 **Examinable objects (2):**
-- **Narrow staircase** — left side, going up/back. Scratches visible on the banister. (Something heavy was dragged along it)
-- **Loose floorboard** — center-right, near the wall. Slightly raised, gap visible. (A bundled bloody shirt hidden underneath)
+- **Worn wooden bedpost** — Simple bed with worn wooden bedpost on the right side. Deep scratches mar the wood near the base. (A.H. initials carved into the bedpost - Arthur Hollis anomaly)
+- **Loose floorboard** — center-left, near the wall. Slightly raised, gap visible. (Empty - scratch marks show something was stored here recently and removed)
 
 **Other visual elements:**
 - Simple, clean room — modest compared to the rest of the manor
@@ -152,18 +192,18 @@ Examinable objects must be **visually identifiable** — a desk should look like
 - Feel: humble, orderly. The staff keeps things neat.
 
 **Navigation exits:**
-- Back: Parlor (arrow, bottom center)
-- Right: Kitchen (arrow, right edge)
+- Back: Kitchen (arrow, bottom center)
+- Left: Groundskeeper Shed (arrow, left edge)
 
 ---
 
-## 8. The Cellar — `cellar.png`
+## 10. The Cellar — `cellar.png`
 
 **Perspective:** Standing at the bottom of the stairs, looking into a dark underground space.
 
 **Examinable objects (2):**
-- **Wine racks** — left side, floor to ceiling. Dusty bottles, but one section is recently disturbed. (Tape hidden behind bottles, taped to the wall)
-- **Flour sacks** — center-right, stacked against the wall. Drag marks in the dust on the floor around them. (This is where the body was moved to)
+- **Wine racks** — left side, floor to ceiling. Dusty bottles, but one section is recently disturbed. (Tape 8 hidden behind bottles, taped to the wall)
+- **Flour sacks** — center-right, stacked against the wall. Drag marks in the dust on the floor around them. (Bloodstained shirt hastily hidden behind the sacks - this is where the body was moved to)
 
 **Other visual elements:**
 - Dark, damp underground room — stone walls, low ceiling, very dim lighting

@@ -106,7 +106,7 @@ public class TextPanel {
 
     private void layoutButtons() {
         float buttonWidth = PANEL_WIDTH - PADDING * 2 - 40;
-        float startY = PANEL_Y + PANEL_HEIGHT - 80 - (text.isEmpty() ? 0 : getTextHeight());
+        float startY = PANEL_Y + PANEL_HEIGHT - 80 - (fullText.isEmpty() ? 0 : getFullTextHeight());
         // Stack buttons from top
         for (int i = 0; i < actionButtons.size(); i++) {
             float y = startY - i * (BUTTON_HEIGHT + BUTTON_SPACING);
@@ -120,6 +120,12 @@ public class TextPanel {
     private float getTextHeight() {
         // Rough estimate: count lines
         String[] lines = wordWrap(text).split("\n");
+        return lines.length * 22f;
+    }
+
+    private float getFullTextHeight() {
+        // Estimate height using the complete text (before typewriter reveal)
+        String[] lines = wordWrap(fullText).split("\n");
         return lines.length * 22f;
     }
 

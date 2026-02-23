@@ -21,6 +21,9 @@ public class GameState {
     // Contradictions discovered
     private final Set<Contradiction> discoveredContradictions = new LinkedHashSet<>();
 
+    // Entity anomalies discovered
+    private final Set<EntityAnomaly> discoveredAnomalies = new LinkedHashSet<>();
+
     // Room visit counts
     private final Map<Room.RoomID, Integer> visitCounts = new EnumMap<>(Room.RoomID.class);
 
@@ -48,6 +51,22 @@ public class GameState {
 
     // Confrontation tracking
     private final Set<Suspect> confrontedSuspects = EnumSet.noneOf(Suspect.class);
+
+    // Received lies from suspects (Feature 1)
+    private final Set<String> receivedLies = new LinkedHashSet<>();
+
+    // Narrator distortions encountered (Feature 2)
+    private final List<String> narratorDistortions = new ArrayList<>();
+
+    // Wrong accusation count (Feature 4)
+    private int wrongAccusationCount = 0;
+
+    // Tape repair kit (Act 3 gate)
+    private boolean hasTapeRepairKit = false;
+
+    // Ending choice (Feature 6)
+    public enum Ending { NONE, ACCUSATION_CORRECT, ACCUSATION_WRONG, SEAL_THE_WALL, ESCAPE_MANOR, DESTROY_TAPES, GAME_OVER_AWARENESS }
+    private Ending chosenEnding = Ending.NONE;
 
     public GameState() {
         // Initialize cooperation from starting values
@@ -141,6 +160,33 @@ public class GameState {
     public void forceMarkConfronted(Suspect s) { confrontedSuspects.add(s); }
     public Set<Suspect> getConfrontedSuspects() { return Collections.unmodifiableSet(confrontedSuspects); }
 
+    // Entity anomalies
+    public Set<EntityAnomaly> getDiscoveredAnomalies() { return Collections.unmodifiableSet(discoveredAnomalies); }
+    public boolean hasAnomaly(EntityAnomaly a) { return discoveredAnomalies.contains(a); }
+    public boolean discoverAnomaly(EntityAnomaly a) { return discoveredAnomalies.add(a); }
+    public int getAnomalyCount() { return discoveredAnomalies.size(); }
+
+    // Received lies
+    public Set<String> getReceivedLies() { return Collections.unmodifiableSet(receivedLies); }
+    public boolean addReceivedLie(String lieKey) { return receivedLies.add(lieKey); }
+    public boolean hasReceivedLie(String lieKey) { return receivedLies.contains(lieKey); }
+
+    // Narrator distortions
+    public List<String> getNarratorDistortions() { return Collections.unmodifiableList(narratorDistortions); }
+    public void addNarratorDistortion(String distortion) { narratorDistortions.add(distortion); }
+
+    // Wrong accusation count
+    public int getWrongAccusationCount() { return wrongAccusationCount; }
+    public void incrementWrongAccusationCount() { wrongAccusationCount++; }
+
+    // Tape repair kit
+    public boolean hasTapeRepairKit() { return hasTapeRepairKit; }
+    public void setHasTapeRepairKit(boolean value) { hasTapeRepairKit = value; }
+
+    // Ending
+    public Ending getChosenEnding() { return chosenEnding; }
+    public void setChosenEnding(Ending ending) { this.chosenEnding = ending; }
+
     // Save/load support
     public void setAwareness(int value) { awareness = Math.max(0, Math.min(value, MAX_AWARENESS)); }
 
@@ -173,6 +219,12 @@ public class GameState {
         narratorHeaderShown = false;
         eventLog.clear();
         confrontedSuspects.clear();
+        discoveredAnomalies.clear();
+        receivedLies.clear();
+        narratorDistortions.clear();
+        wrongAccusationCount = 0;
+        hasTapeRepairKit = false;
+        chosenEnding = Ending.NONE;
         for (Suspect s : Suspect.values()) {
             cooperation.put(s, s.getStartingCooperation());
         }
@@ -193,4 +245,9 @@ public class GameState {
     public void setCommandCount(int count) { commandCount = count; }
     public void setInterviewCount(int count) { interviewCount = count; }
     public void setEvidenceShownCount(int count) { evidenceShownCount = count; }
+    public void forceDiscoverAnomaly(EntityAnomaly a) { discoveredAnomalies.add(a); }
+    public void forceAddReceivedLie(String lieKey) { receivedLies.add(lieKey); }
+    public void forceAddNarratorDistortion(String distortion) { narratorDistortions.add(distortion); }
+    public void setWrongAccusationCount(int count) { wrongAccusationCount = count; }
+    public void setChosenEndingByName(String name) { chosenEnding = Ending.valueOf(name); }
 }

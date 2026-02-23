@@ -5,7 +5,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.dsa.game.navigation.Room;
-import com.dsa.game.navigation.RoomManager;
 import com.dsa.game.state.*;
 
 import java.util.*;
@@ -43,6 +42,14 @@ public class SaveLoadSystem {
         public boolean narratorHeaderShown;
         public List<String> eventLog = new ArrayList<>();
         public List<String> confrontedSuspects = new ArrayList<>();
+
+        // New narrative depth fields
+        public List<String> discoveredAnomalies = new ArrayList<>();
+        public List<String> receivedLies = new ArrayList<>();
+        public List<String> narratorDistortions = new ArrayList<>();
+        public int wrongAccusationCount;
+        public String chosenEnding = "NONE";
+        public boolean hasTapeRepairKit;
 
         /** No-arg constructor required by LibGDX Json. */
         public SaveData() {}
@@ -91,6 +98,16 @@ public class SaveLoadSystem {
         for (Suspect s : state.getConfrontedSuspects()) {
             data.confrontedSuspects.add(s.name());
         }
+
+        // Narrative depth fields
+        for (com.dsa.game.state.EntityAnomaly a : state.getDiscoveredAnomalies()) {
+            data.discoveredAnomalies.add(a.name());
+        }
+        data.receivedLies.addAll(state.getReceivedLies());
+        data.narratorDistortions.addAll(state.getNarratorDistortions());
+        data.wrongAccusationCount = state.getWrongAccusationCount();
+        data.chosenEnding = state.getChosenEnding().name();
+        data.hasTapeRepairKit = state.hasTapeRepairKit();
 
         Json json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
@@ -164,6 +181,28 @@ public class SaveLoadSystem {
                     state.forceMarkConfronted(Suspect.valueOf(name));
                 }
             }
+
+            // Narrative depth fields
+            if (data.discoveredAnomalies != null) {
+                for (String name : data.discoveredAnomalies) {
+                    state.forceDiscoverAnomaly(com.dsa.game.state.EntityAnomaly.valueOf(name));
+                }
+            }
+            if (data.receivedLies != null) {
+                for (String lieKey : data.receivedLies) {
+                    state.forceAddReceivedLie(lieKey);
+                }
+            }
+            if (data.narratorDistortions != null) {
+                for (String distortion : data.narratorDistortions) {
+                    state.forceAddNarratorDistortion(distortion);
+                }
+            }
+            state.setWrongAccusationCount(data.wrongAccusationCount);
+            if (data.chosenEnding != null) {
+                state.setChosenEndingByName(data.chosenEnding);
+            }
+            state.setHasTapeRepairKit(data.hasTapeRepairKit);
 
             return Room.RoomID.valueOf(data.currentRoom);
         } catch (Exception e) {

@@ -33,17 +33,36 @@ public class TitleScreen implements Screen {
     private GlyphLayout layout;
 
     private Texture backgroundTexture;
+    private boolean usingImageBackground = false;
     private SaveLoadSystem saveLoadSystem;
     private TextPanel textPanel;
     private final Vector2 touchPos = new Vector2();
 
-    // Menu buttons
+    // Menu buttons (only used for procedural background)
     private TextButton newGameButton;
     private TextButton loadGameButton;
     private TextButton settingsButton;
     private TextButton quitButton;
 
-    // State
+    private class ClickRegion {
+        float x, y, width, height;
+        String action;
+
+        ClickRegion(float x, float y, float width, float height, String action) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.action = action;
+        }
+
+        boolean contains(float px, float py) {
+            return px >= x && px <= x + width && py >= y && py <= y + height;
+        }
+    }
+
+    private List<ClickRegion> clickRegions = new ArrayList<>();
+
     private boolean showingLoadPanel = false;
 
     public TitleScreen(DSAGame game) {
@@ -69,15 +88,63 @@ public class TitleScreen implements Screen {
 
         generateBackground();
         createButtons();
+        setupClickRegions();
         setupInput();
     }
 
+    private void setupClickRegions() {
+        clickRegions.add(new ClickRegion(
+                500,
+                305,
+                317,
+                57,
+                "new_game"));
+
+        clickRegions.add(new ClickRegion(
+                535,
+                230,
+                235,
+                55,
+                "load_game"));
+
+        clickRegions.add(new ClickRegion(
+                535,
+                155,
+                235,
+                50,
+                "settings"));
+
+        clickRegions.add(new ClickRegion(
+                535,
+                85,
+                233,
+                45,
+                "quit"));
+    }
+
     private void generateBackground() {
+        String imagePath = "rooms/coverscreen.png";
+
+        if (Gdx.files.internal(imagePath).exists()) {
+            try {
+                backgroundTexture = new Texture(Gdx.files.internal(imagePath));
+                usingImageBackground = true;
+            } catch (Exception e) {
+                Gdx.app.error("TitleScreen", "Failed to load cover screen image, falling back to procedural generation",
+                        e);
+                generateProceduralBackground();
+            }
+        } else {
+            Gdx.app.log("TitleScreen", "Cover screen image not found, using procedural generation");
+            generateProceduralBackground();
+        }
+    }
+
+    private void generateProceduralBackground() {
         int w = DSAGame.SCREEN_WIDTH;
         int h = DSAGame.SCREEN_HEIGHT;
         Pixmap pixmap = new Pixmap(w, h, Pixmap.Format.RGBA8888);
 
-        // Dark gradient background
         for (int y = 0; y < h; y++) {
             float t = (float) y / h;
             float r = 0.02f + 0.04f * t;
@@ -89,6 +156,7 @@ public class TitleScreen implements Screen {
 
         backgroundTexture = new Texture(pixmap);
         pixmap.dispose();
+        usingImageBackground = false;
     }
 
     private void createButtons() {
@@ -100,7 +168,8 @@ public class TitleScreen implements Screen {
 
         newGameButton = new TextButton("New Game", centerX, startY, buttonWidth, buttonHeight, "new_game");
         loadGameButton = new TextButton("Load Game", centerX, startY - spacing, buttonWidth, buttonHeight, "load_game");
-        settingsButton = new TextButton("Settings", centerX, startY - spacing * 2, buttonWidth, buttonHeight, "settings");
+        settingsButton = new TextButton("Settings", centerX, startY - spacing * 2, buttonWidth, buttonHeight,
+                "settings");
         quitButton = new TextButton("Quit", centerX, startY - spacing * 3, buttonWidth, buttonHeight, "quit");
     }
 
@@ -113,7 +182,6 @@ public class TitleScreen implements Screen {
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
 
-                // TextPanel (load menu) gets priority
                 if (textPanel.isVisible()) {
                     String action = textPanel.handleClick(gameX, gameY);
                     if (action != null) {
@@ -122,7 +190,16 @@ public class TitleScreen implements Screen {
                     return true;
                 }
 
-                // Menu buttons
+                if (usingImageBackground) {
+                    for (ClickRegion region : clickRegions) {
+                        if (region.contains(gameX, gameY)) {
+                            handleMenuAction(region.action);
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
                 if (newGameButton.contains(gameX, gameY)) {
                     startNewGame();
                     return true;
@@ -155,10 +232,12 @@ public class TitleScreen implements Screen {
                     return false;
                 }
 
-                newGameButton.checkHover(gameX, gameY);
-                loadGameButton.checkHover(gameX, gameY);
-                settingsButton.checkHover(gameX, gameY);
-                quitButton.checkHover(gameX, gameY);
+                if (!usingImageBackground) {
+                    newGameButton.checkHover(gameX, gameY);
+                    loadGameButton.checkHover(gameX, gameY);
+                    settingsButton.checkHover(gameX, gameY);
+                    quitButton.checkHover(gameX, gameY);
+                }
                 return false;
             }
 
@@ -186,6 +265,23 @@ public class TitleScreen implements Screen {
                 return true;
             }
         });
+    }
+
+    private void handleMenuAction(String action) {
+        switch (action) {
+            case "new_game":
+                startNewGame();
+                break;
+            case "load_game":
+                showLoadPanel();
+                break;
+            case "settings":
+                showTitleSettings();
+                break;
+            case "quit":
+                Gdx.app.exit();
+                break;
+        }
     }
 
     private void startNewGame() {
@@ -217,10 +313,14 @@ public class TitleScreen implements Screen {
 
         float speed = TextPanel.getCharsPerSecond();
         String speedLabel;
-        if (speed <= 20f) speedLabel = "Slow";
-        else if (speed <= 50f) speedLabel = "Normal";
-        else if (speed <= 100f) speedLabel = "Fast";
-        else speedLabel = "Instant";
+        if (speed <= 20f)
+            speedLabel = "Slow";
+        else if (speed <= 50f)
+            speedLabel = "Normal";
+        else if (speed <= 100f)
+            speedLabel = "Fast";
+        else
+            speedLabel = "Instant";
         buttons.add(new TextButton("Text Speed: " + speedLabel, 0, 0, 200, 35, "cycle_text_speed"));
 
         buttons.add(new TextButton("Back", 0, 0, 200, 35, "settings_back"));
@@ -247,10 +347,14 @@ public class TitleScreen implements Screen {
 
         if ("cycle_text_speed".equals(action)) {
             float speed = TextPanel.getCharsPerSecond();
-            if (speed <= 20f) TextPanel.setCharsPerSecond(40f);
-            else if (speed <= 50f) TextPanel.setCharsPerSecond(80f);
-            else if (speed <= 100f) TextPanel.setCharsPerSecond(200f);
-            else TextPanel.setCharsPerSecond(20f);
+            if (speed <= 20f)
+                TextPanel.setCharsPerSecond(40f);
+            else if (speed <= 50f)
+                TextPanel.setCharsPerSecond(80f);
+            else if (speed <= 100f)
+                TextPanel.setCharsPerSecond(200f);
+            else
+                TextPanel.setCharsPerSecond(20f);
             showTitleSettings();
             return;
         }
@@ -270,32 +374,29 @@ public class TitleScreen implements Screen {
         batch.setProjectionMatrix(game.camera.combined);
         batch.begin();
 
-        // Background
         batch.draw(backgroundTexture, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
 
-        // Title
-        String title = "The Unreliable Narrator";
-        layout.setText(titleFont, title);
-        float titleX = DSAGame.SCREEN_WIDTH / 2f - layout.width / 2f;
-        float titleY = DSAGame.SCREEN_HEIGHT - 150;
-        titleFont.draw(batch, title, titleX, titleY);
+        if (!usingImageBackground) {
+            String title = "The Unreliable Narrator";
+            layout.setText(titleFont, title);
+            float titleX = DSAGame.SCREEN_WIDTH / 2f - layout.width / 2f;
+            float titleY = DSAGame.SCREEN_HEIGHT - 150;
+            titleFont.draw(batch, title, titleX, titleY);
 
-        // Subtitle
-        String subtitle = "A Murder Mystery";
-        layout.setText(subtitleFont, subtitle);
-        float subX = DSAGame.SCREEN_WIDTH / 2f - layout.width / 2f;
-        float subY = titleY - 50;
-        subtitleFont.draw(batch, subtitle, subX, subY);
+            String subtitle = "A Murder Mystery";
+            layout.setText(subtitleFont, subtitle);
+            float subX = DSAGame.SCREEN_WIDTH / 2f - layout.width / 2f;
+            float subY = titleY - 50;
+            subtitleFont.draw(batch, subtitle, subX, subY);
+        }
 
-        // Menu buttons (only when load panel not showing)
-        if (!textPanel.isVisible()) {
+        if (!usingImageBackground && !textPanel.isVisible()) {
             newGameButton.render(batch, font);
             loadGameButton.render(batch, font);
             settingsButton.render(batch, font);
             quitButton.render(batch, font);
         }
 
-        // Load panel overlay
         textPanel.render(batch, font);
 
         batch.end();
@@ -312,20 +413,24 @@ public class TitleScreen implements Screen {
     }
 
     @Override
-    public void hide() {}
+    public void hide() {
+    }
 
     @Override
-    public void pause() {}
+    public void pause() {
+    }
 
     @Override
-    public void resume() {}
+    public void resume() {
+    }
 
     @Override
     public void dispose() {
         titleFont.dispose();
         subtitleFont.dispose();
         font.dispose();
-        if (backgroundTexture != null) backgroundTexture.dispose();
+        if (backgroundTexture != null)
+            backgroundTexture.dispose();
         textPanel.dispose();
     }
 }

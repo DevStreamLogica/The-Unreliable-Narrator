@@ -1,9 +1,5 @@
 package com.dsa.game.navigation;
 
-/**
- * Direction enum for navigation between rooms.
- * Matches the navigation system from the LibGDX guide.
- */
 public enum Direction {
     NORTH("Forward", "Go forward"),
     SOUTH("Back", "Go back"),

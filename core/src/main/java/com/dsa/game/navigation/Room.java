@@ -5,10 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Room represents a location in the game.
- * Maps to the Location enum from the original text game.
- */
 public class Room {
 
     public enum RoomID {
@@ -17,9 +13,11 @@ public class Room {
         PARLOR,
         KITCHEN,
         GUEST_ROOMS,
+        JAMES_ROOM,
+        MARGARET_ROOM,
         GROUNDSKEEPER_SHED,
         SERVANTS_QUARTERS,
-        CELLAR  // Note: CELLAR exists in navigation guide but not in original Location enum
+        CELLAR
     }
 
     private RoomID id;
@@ -38,17 +36,14 @@ public class Room {
         this.connections = new HashMap<>();
     }
 
-    // Add a connection to another room
     public void addConnection(Direction direction, RoomID targetRoom) {
         connections.put(direction, targetRoom);
     }
 
-    // Add a clickable hotspot
     public void addHotspot(Hotspot hotspot) {
         hotspots.add(hotspot);
     }
 
-    // Getters
     public RoomID getId() { return id; }
     public String getName() { return name; }
     public String getDescription() { return description; }
@@ -56,7 +51,6 @@ public class Room {
     public List<Hotspot> getHotspots() { return hotspots; }
     public Map<Direction, RoomID> getConnections() { return connections; }
 
-    // Check if room connects to another in given direction
     public boolean hasConnection(Direction direction) {
         return connections.containsKey(direction);
     }

@@ -7,7 +7,6 @@ public class AwarenessSystem {
     private final GameState state;
     private int lastThresholdCrossed = 0;
 
-    // Thresholds for warnings
     private static final int[] THRESHOLDS = {20, 40, 60, 70, 80};
     private static final String[] THRESHOLD_WARNINGS = {
         "You feel eyes watching you. The household is becoming aware of your investigation.",
@@ -21,15 +20,11 @@ public class AwarenessSystem {
         this.state = state;
     }
 
-    /**
-     * Add awareness and return a warning message if a threshold was crossed, or null.
-     */
     public String addAwareness(int amount) {
         int before = state.getAwareness();
         state.addAwareness(amount);
         int after = state.getAwareness();
 
-        // Check if we crossed a threshold
         for (int i = 0; i < THRESHOLDS.length; i++) {
             if (before < THRESHOLDS[i] && after >= THRESHOLDS[i]) {
                 lastThresholdCrossed = THRESHOLDS[i];
@@ -55,9 +50,6 @@ public class AwarenessSystem {
         return (float) state.getAwareness() / GameState.MAX_AWARENESS;
     }
 
-    /**
-     * Returns color index: 0=green, 1=yellow, 2=orange, 3=red
-     */
     public int getColorIndex() {
         float pct = getPercentage();
         if (pct < 0.25f) return 0;

@@ -21,6 +21,7 @@ import com.dsa.game.data.ClimaxContent;
 import com.dsa.game.data.RoomDescriptions;
 import com.dsa.game.data.SuspectDialogue;
 import com.dsa.game.data.TapeContent;
+import com.dsa.game.data.NarratorText;
 import com.dsa.game.navigation.*;
 import com.dsa.game.rendering.PlaceholderGenerator;
 import com.dsa.game.state.*;
@@ -40,11 +41,10 @@ public class GameScreen implements Screen {
 
     private RoomManager roomManager;
 
-    // Textures
     private Map<Room.RoomID, Texture> roomTextures;
-    private Texture pixelTexture; // 1x1 white pixel for dynamic drawing
+    private Texture pixelTexture;
 
-    // UI
+
     private String currentTooltip = "";
     private GlyphLayout layout;
 
@@ -70,6 +70,7 @@ public class GameScreen implements Screen {
     private TextPanel textPanel;
     private AwarenessMeter awarenessMeter;
     private ActionBar actionBar;
+    private DocumentReconstructionGame documentGame;
 
     // Panel mode tracking
     private enum PanelMode { NONE, TEXT, INVENTORY, SUSPECTS, SUSPECT_LIST, INTERVIEW, TAPE_PLAY, SHOW_EVIDENCE, ACCUSE_SELECT, NOTEBOOK, SAVE_MENU, LOAD_MENU, PAUSE, HISTORY, OBJECTIVES, SETTINGS }
@@ -77,6 +78,9 @@ public class GameScreen implements Screen {
 
     // Climax state
     private boolean pendingClimax = false;
+
+    // Mini-game state
+    private ExamResult.MiniGameType pendingMiniGame = null;
 
     public GameScreen(DSAGame game) {
         this.game = game;
@@ -114,6 +118,7 @@ public class GameScreen implements Screen {
         textPanel = new TextPanel();
         awarenessMeter = new AwarenessMeter();
         actionBar = new ActionBar();
+        documentGame = new DocumentReconstructionGame();
 
         setupInput();
     }
@@ -144,21 +149,31 @@ public class GameScreen implements Screen {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-                if (gameState.isGameOver() || gameState.isGameWon()) return true;
-
                 touchPos.set(screenX, screenY);
                 viewport.unproject(touchPos);
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
 
-                // TextPanel gets priority
+                // Allow text panel interaction even after game over/won
                 if (textPanel.isVisible()) {
                     String action = textPanel.handleClick(gameX, gameY);
                     if (action != null) {
                         handlePanelAction(action);
                         return true;
                     }
-                    return true; // consume all clicks when panel visible
+                    return true;
+                }
+
+                if (gameState.isGameOver() || gameState.isGameWon()) return true;
+
+                // Document reconstruction mini-game gets top priority
+                if (documentGame.isActive()) {
+                    if (documentGame.isCompleted()) {
+                        documentGame.finish();
+                    } else {
+                        documentGame.handleTouchDown(gameX, gameY);
+                    }
+                    return true;
                 }
 
                 // Action bar
@@ -168,16 +183,42 @@ public class GameScreen implements Screen {
                     return true;
                 }
 
-                // Hotspots
+                // Hotspots - Check EXAMINE hotspots first (they take priority over navigation)
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
-                    if (hotspot.contains(gameX, gameY)) {
-                        if (hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
-                            handleExamine(hotspot.getObjectName());
-                        } else {
-                            handleNavigation(hotspot.getTargetRoom());
-                        }
+                    if (hotspot.contains(gameX, gameY) && hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
+                        handleExamine(hotspot.getObjectName());
                         return true;
                     }
+                }
+
+                // Then check navigation hotspots
+                for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
+                    if (hotspot.contains(gameX, gameY)) {
+                        handleNavigation(hotspot.getTargetRoom());
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public boolean touchDragged(int screenX, int screenY, int pointer) {
+                if (documentGame.isActive() && !documentGame.isCompleted()) {
+                    touchPos.set(screenX, screenY);
+                    viewport.unproject(touchPos);
+                    documentGame.handleTouchDragged(touchPos.x, touchPos.y);
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+                if (documentGame.isActive() && !documentGame.isCompleted()) {
+                    touchPos.set(screenX, screenY);
+                    viewport.unproject(touchPos);
+                    documentGame.handleTouchUp(touchPos.x, touchPos.y);
+                    return true;
                 }
                 return false;
             }
@@ -189,6 +230,13 @@ public class GameScreen implements Screen {
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
                 currentTooltip = "";
+
+                // Mini-game hover handling
+                if (documentGame.isActive()) {
+                    documentGame.handleHover(gameX, gameY);
+                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
+                    return false;
+                }
 
                 if (textPanel.isVisible()) {
                     textPanel.handleHover(gameX, gameY);
@@ -218,7 +266,21 @@ public class GameScreen implements Screen {
 
             @Override
             public boolean keyDown(int keycode) {
-                if (gameState.isGameOver() || gameState.isGameWon()) return true;
+                if (gameState.isGameOver() || gameState.isGameWon()) {
+                    if (keycode == Input.Keys.ESCAPE) {
+                        game.setScreen(new TitleScreen(game));
+                    }
+                    return true;
+                }
+
+                // Block keyboard when mini-game is active (except ESC to cancel)
+                if (documentGame.isActive()) {
+                    if (keycode == Input.Keys.ESCAPE && !documentGame.isCompleted()) {
+                        // Cancel the mini-game without getting evidence
+                        documentGame.cancel();
+                    }
+                    return true;
+                }
 
                 // ESC closes panel or opens pause menu
                 if (keycode == Input.Keys.ESCAPE) {
@@ -277,7 +339,50 @@ public class GameScreen implements Screen {
         }
     }
 
+    private boolean isCellarUnlocked() {
+        return gameState.getWatchedTapes().size() >= 4
+            && gameState.getCollectedEvidence().size() >= 5;
+    }
+
+    private boolean isMargaretRoomUnlocked() {
+        return gameState.hasAnomaly(com.dsa.game.state.EntityAnomaly.BREATHING_WALL);
+    }
+
     private void handleNavigation(Room.RoomID target) {
+        // Act structure: Entity gates certain rooms
+        if (target == Room.RoomID.CELLAR && !isCellarUnlocked()) {
+            NarratorText.Mood mood = NarratorText.getMoodForAwareness(gameState.getAwareness());
+            String narratorLine;
+            switch (mood) {
+                case HOPEFUL: narratorLine = "\"I wouldn't bother, detective. Nothing down there but dust and old wine. Focus on the rooms up here.\""; break;
+                case CONFUSED: narratorLine = "\"That door... it won't open. Strange. I don't remember it being locked. Perhaps try the other rooms first?\""; break;
+                case ANXIOUS: narratorLine = "\"Don't go down there. Please. Something about the cellar makes my skin crawl. There's nothing for your investigation below.\""; break;
+                default: narratorLine = "\"NO! Stay AWAY from the cellar! You don't understand what's down there! I mean... it's irrelevant. Completely irrelevant.\""; break;
+            }
+            textPanel.show("THE CELLAR\n\nThe door to the cellar won't budge. The handle is ice-cold " +
+                "to the touch, far colder than it should be. Something below is keeping this door sealed.\n\n" +
+                narratorLine + "\n\n" +
+                "[Continue investigating. Gather more evidence and testimony.]");
+            panelMode = PanelMode.TEXT;
+            return;
+        }
+        if (target == Room.RoomID.MARGARET_ROOM && !isMargaretRoomUnlocked()) {
+            NarratorText.Mood mood = NarratorText.getMoodForAwareness(gameState.getAwareness());
+            String narratorLine;
+            switch (mood) {
+                case HOPEFUL: narratorLine = "\"Margaret's room? She's a witness, not a suspect. Her room won't tell you anything useful.\""; break;
+                case CONFUSED: narratorLine = "\"The door won't budge. That's odd. It was open earlier, wasn't it? Perhaps Margaret locked it.\""; break;
+                case ANXIOUS: narratorLine = "\"Something is holding that door shut. Not a lock -- something else. Please, detective, leave it alone.\""; break;
+                default: narratorLine = "\"THE DOOR IS SEALED! Can't you feel the cold? Whatever is behind that door, they don't -- I mean, there's no reason to go in there!\""; break;
+            }
+            textPanel.show("MARGARET'S ROOM\n\nThe door is sealed shut. Not locked -- sealed. " +
+                "The wood is unnaturally cold. Frost traces the edges of the frame despite the warm hallway.\n\n" +
+                narratorLine + "\n\n" +
+                "[The Entity's grip may weaken if you investigate deeper into the manor.]");
+            panelMode = PanelMode.TEXT;
+            return;
+        }
+
         roomManager.navigateTo(target);
         titleFadeTimer = 0;
         descFadeTimer = 0;
@@ -297,6 +402,13 @@ public class GameScreen implements Screen {
             textPanel.show("WARNING\n\n" + narratorSystem.getWarning());
             panelMode = PanelMode.TEXT;
         } else {
+            // Check for narrator slip (Entity Discovery)
+            String narratorSlip = narratorSystem.maybeGetNarratorSlip();
+            if (narratorSlip != null) {
+                textPanel.show(narratorSlip);
+                panelMode = PanelMode.TEXT;
+                return;
+            }
             // Check for atmospheric events on navigation
             String atmospheric = narratorSystem.maybeGetAtmosphericEvent();
             if (atmospheric != null) {
@@ -316,6 +428,17 @@ public class GameScreen implements Screen {
 
         // +1 awareness per examination
         String warning = awarenessSystem.addAwareness(1);
+
+        if (gameState.isGameOver()) {
+            showGameOver();
+            return;
+        }
+
+        // Check if this triggers a mini-game
+        if (result.hasMiniGame()) {
+            handleMiniGame(result, warning);
+            return;
+        }
 
         StringBuilder display = new StringBuilder();
         display.append("Examining: ").append(RoomDescriptions.getObjectDisplayName(objectName)).append("\n\n");
@@ -337,17 +460,56 @@ public class GameScreen implements Screen {
             }
         }
 
-        if (gameState.isGameOver()) {
-            showGameOver();
-            return;
-        }
-
         if (warning != null) {
             display.append("\n\n--- ").append(narratorSystem.getWarning());
         }
 
         textPanel.show(display.toString());
         panelMode = PanelMode.TEXT;
+    }
+
+    private void handleMiniGame(ExamResult result, String warning) {
+        switch (result.getMiniGame()) {
+            case TORN_LETTER_RECONSTRUCTION:
+                // Show intro text first, then start mini-game
+                textPanel.show(narratorSystem.filterText(result.getText()) + "\n\n[Reconstruct the document to reveal its contents...]");
+                panelMode = PanelMode.TEXT;
+
+                // Start the mini-game after the text panel is closed
+                // We'll handle this by setting a pending mini-game state
+                pendingMiniGame = result.getMiniGame();
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void startPendingMiniGame() {
+        if (pendingMiniGame == null) return;
+
+        switch (pendingMiniGame) {
+            case TORN_LETTER_RECONSTRUCTION:
+                documentGame.startTornLetter(
+                    // On complete: collect evidence
+                    () -> {
+                        boolean isNew = evidenceSystem.collect(Evidence.TORN_LETTER);
+                        if (isNew) {
+                            gameState.addEvent("Found evidence: " + Evidence.TORN_LETTER.getDisplayName());
+                        }
+                        textPanel.show("Document reconstructed!\n\n\"...cannot allow this betrayal... the will must... James has...\"\n\nThe rest is destroyed, but this fragment speaks of treachery and the will.\n\n[EVIDENCE FOUND: " + Evidence.TORN_LETTER.getDisplayName() + "]");
+                        panelMode = PanelMode.TEXT;
+                    },
+                    // On cancel: no evidence
+                    () -> {
+                        textPanel.show("You set the fragments aside for now. Perhaps you'll return to them later.");
+                        panelMode = PanelMode.TEXT;
+                    }
+                );
+                break;
+            default:
+                break;
+        }
+        pendingMiniGame = null;
     }
 
     // --- Action Bar ---
@@ -398,15 +560,57 @@ public class GameScreen implements Screen {
         sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS);
         sb.append(" (").append(awarenessSystem.getLevelName()).append(")\n\n");
 
-        sb.append("Evidence collected: ").append(gameState.getCollectedEvidence().size()).append("/9\n");
-        sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/7\n");
+        sb.append("Evidence collected: ").append(gameState.getCollectedEvidence().size()).append("/10\n");
+        sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/8\n");
         sb.append("Tapes watched: ").append(gameState.getWatchedTapes().size()).append("/").append(gameState.getCollectedTapes().size()).append("\n\n");
 
-        if (!gameState.getDiscoveredContradictions().isEmpty()) {
-            sb.append("=== CONTRADICTIONS ===\n\n");
+        // Split contradictions into Physical and Narrator sections
+        boolean hasPhysical = false;
+        boolean hasNarrator = false;
+        for (Contradiction c : gameState.getDiscoveredContradictions()) {
+            if (c.isNarratorContradiction()) hasNarrator = true;
+            else hasPhysical = true;
+        }
+
+        if (hasPhysical) {
+            sb.append("=== PHYSICAL CONTRADICTIONS ===\n\n");
             for (Contradiction c : gameState.getDiscoveredContradictions()) {
-                sb.append("* ").append(c.name().replace('_', ' ')).append("\n");
-                sb.append("  ").append(c.getDescription()).append("\n\n");
+                if (!c.isNarratorContradiction()) {
+                    sb.append("* ").append(c.name().replace('_', ' ')).append("\n");
+                    sb.append("  ").append(c.getDescription()).append("\n\n");
+                }
+            }
+        }
+
+        if (hasNarrator) {
+            sb.append("=== NARRATOR CONTRADICTIONS ===\n\n");
+            int narratorCount = 0;
+            for (Contradiction c : gameState.getDiscoveredContradictions()) {
+                if (c.isNarratorContradiction()) {
+                    sb.append("* ").append(c.name().replace('_', ' ')).append("\n");
+                    sb.append("  ").append(c.getDescription()).append("\n\n");
+                    narratorCount++;
+                }
+            }
+            if (narratorCount >= 3) {
+                sb.append("[META-INSIGHT: The narrator is actively lying to you. Everything he says must be questioned. He's not guiding your investigation -- he's shaping it.]\n\n");
+            }
+        }
+
+        // Narrator distortions section
+        if (!gameState.getNarratorDistortions().isEmpty()) {
+            sb.append("=== NARRATOR INCONSISTENCIES ===\n\n");
+            for (String distortion : gameState.getNarratorDistortions()) {
+                sb.append("* \"").append(distortion).append("\"\n\n");
+            }
+        }
+
+        // Entity anomalies section
+        if (!gameState.getDiscoveredAnomalies().isEmpty()) {
+            sb.append("=== ENTITY ANOMALIES (").append(gameState.getAnomalyCount()).append("/7) ===\n\n");
+            for (com.dsa.game.state.EntityAnomaly a : gameState.getDiscoveredAnomalies()) {
+                sb.append("* ").append(a.getDisplayName()).append("\n");
+                sb.append("  ").append(a.getDescription()).append("\n\n");
             }
         }
 
@@ -452,10 +656,24 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("James & Daniel (together)", 0, 0, 200, 35, "accuse_james_daniel"));
         buttons.add(new TextButton("James alone", 0, 0, 200, 35, "accuse_james"));
         buttons.add(new TextButton("Margaret", 0, 0, 200, 35, "accuse_margaret"));
-        buttons.add(new TextButton("Eleanor or Reginald", 0, 0, 200, 35, "accuse_staff"));
+        buttons.add(new TextButton("Daniel alone", 0, 0, 200, 35, "accuse_daniel"));
+        buttons.add(new TextButton("Marcus Blackwood", 0, 0, 200, 35, "accuse_marcus"));
+        buttons.add(new TextButton("Charles Webb", 0, 0, 200, 35, "accuse_charles"));
+
+        // Post-climax moral choices (Feature 6)
+        if (gameState.isClimaxTriggered()) {
+            buttons.add(new TextButton("Seal the Wall", 0, 0, 200, 35, "ending_seal"));
+            buttons.add(new TextButton("Destroy the Tapes", 0, 0, 200, 35, "ending_destroy"));
+            buttons.add(new TextButton("Escape the Manor", 0, 0, 200, 35, "ending_escape"));
+        }
+
         buttons.add(new TextButton("Leave the Manor", 0, 0, 200, 35, "leave_manor"));
 
-        textPanel.showButtons("=== WHO KILLED HAROLD VANCE? ===\n\nSelect your accusation carefully.", buttons);
+        String header = "=== WHO KILLED HAROLD VANCE? ===\n\nSelect your accusation carefully.";
+        if (gameState.isClimaxTriggered()) {
+            header += "\n\nOr... choose what to do about the Entity.";
+        }
+        textPanel.showButtons(header, buttons);
         panelMode = PanelMode.ACCUSE_SELECT;
     }
 
@@ -468,8 +686,13 @@ public class GameScreen implements Screen {
                 if (pendingClimax) {
                     pendingClimax = false;
                     gameState.setClimaxTriggered(true);
-                    textPanel.show(ClimaxContent.TAPE_6_CLIMAX);
+                    textPanel.show(ClimaxContent.getTape8Climax(gameState.getAnomalyCount()));
                     panelMode = PanelMode.TEXT;
+                    return;
+                }
+                // Mini-game intercept: start mini-game after intro text
+                if (pendingMiniGame != null) {
+                    startPendingMiniGame();
                     return;
                 }
                 if (interviewSystem.isInterviewActive() && panelMode == PanelMode.INTERVIEW) {
@@ -551,11 +774,18 @@ public class GameScreen implements Screen {
             return;
         }
 
-        // End interview
+        // End interview — show channeling end text
         if ("end_interview".equals(action)) {
             interviewSystem.endInterview();
-            textPanel.hide();
-            panelMode = PanelMode.NONE;
+            String endText = narratorSystem.getChannelingEnd();
+            textPanel.show(endText);
+            panelMode = PanelMode.TEXT;
+            return;
+        }
+
+        // Moral endgame endings
+        if (action.startsWith("ending_")) {
+            handleMoralEnding(action);
             return;
         }
 
@@ -649,21 +879,32 @@ public class GameScreen implements Screen {
     // --- Tape Playing ---
 
     private void playTape(Tape tape) {
+        // Tape 8 is physically damaged — needs repair kit from Margaret's Room
+        if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.hasTapeRepairKit()) {
+            textPanel.show("DAMAGED TAPE\n\nThe tape's casing is cracked and the ribbon inside " +
+                "is snapped. You can hear fragments rattling loose inside the housing.\n\n" +
+                "Someone recorded something important on this tape, but it's been badly damaged -- " +
+                "possibly deliberately. You'd need recording equipment to splice the ribbon back together.\n\n" +
+                "[Find a way to repair this tape.]");
+            panelMode = PanelMode.TEXT;
+            return;
+        }
+
         evidenceSystem.watchTape(tape);
         gameState.incrementCommandCount();
         gameState.addEvent("Watched tape: " + tape.getTitle());
 
-        // Variable awareness cost: +5 for cellar tape, +4 for others
-        int awarenessCost = (tape == Tape.TAPE_CELLAR_NOISES)
-            ? ClimaxContent.TAPE_7_AWARENESS_COST
+        // Variable awareness cost: +5 for climax tape, +4 for others
+        int awarenessCost = (tape == Tape.TAPE_ARTHUR_DEATH)
+            ? ClimaxContent.TAPE_8_AWARENESS_COST
             : ClimaxContent.STANDARD_TAPE_AWARENESS_COST;
         String warning = awarenessSystem.addAwareness(awarenessCost);
 
         StringBuilder sb = new StringBuilder();
 
-        // Tape 7 (Cellar Recording) has a special Victor prefix
-        if (tape == Tape.TAPE_CELLAR_NOISES) {
-            sb.append(ClimaxContent.TAPE_7_VICTOR_PREFIX);
+        // Tape 8 (The Opening) has a special prefix about its unknown origin
+        if (tape == Tape.TAPE_ARTHUR_DEATH) {
+            sb.append(ClimaxContent.TAPE_8_CELLAR_PREFIX);
         }
 
         sb.append(TapeContent.getTranscript(tape));
@@ -677,8 +918,8 @@ public class GameScreen implements Screen {
             sb.append("\n\n--- ").append(narratorSystem.getWarning());
         }
 
-        // Tape 6 (Kitchen Whispers) triggers the climax sequence
-        if (tape == Tape.TAPE_KITCHEN_WHISPERS && !gameState.isClimaxTriggered()) {
+        // Tape 8 (The Opening) triggers the climax sequence - it's Arthur's death recording found in the cellar
+        if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.isClimaxTriggered()) {
             pendingClimax = true;
         }
 
@@ -689,6 +930,7 @@ public class GameScreen implements Screen {
     // --- Interview ---
 
     private void startInterview(Suspect suspect) {
+        boolean isFirstInterview = gameState.getInterviewCount() == 0;
         String greeting = interviewSystem.startInterview(suspect);
         gameState.incrementCommandCount();
         gameState.incrementInterviewCount();
@@ -703,7 +945,10 @@ public class GameScreen implements Screen {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append(narratorSystem.filterText(greeting));
+        // Channeling intro instead of normal narrator filter
+        sb.append(narratorSystem.getChannelingIntro(isFirstInterview));
+        sb.append("\n\n");
+        sb.append(greeting);
         if (warning != null) {
             sb.append("\n\n--- ").append(narratorSystem.getWarning());
         }
@@ -734,7 +979,7 @@ public class GameScreen implements Screen {
         if (gameState.hasEvidence(Evidence.LETTER_OPENER) && !gameState.hasContradiction(Contradiction.WEAPON)) {
             buttons.add(new TextButton("Challenge: Weapon", 0, 0, 200, 35, "contra_weapon"));
         }
-        if (!gameState.hasContradiction(Contradiction.BODY_POSITION)) {
+        if (gameState.hasEvidence(Evidence.BLOODSTAINED_CUFF) && !gameState.hasContradiction(Contradiction.BODY_POSITION)) {
             buttons.add(new TextButton("Challenge: Body Position", 0, 0, 200, 35, "contra_body"));
         }
 
@@ -751,11 +996,11 @@ public class GameScreen implements Screen {
                 case MARGARET:
                     canConfront = gameState.hasEvidence(Evidence.TORN_LETTER) && gameState.hasEvidence(Evidence.WILL_COPY);
                     break;
-                case ELEANOR:
-                    canConfront = gameState.hasEvidence(Evidence.SLEEPING_POWDER);
+                case MARCUS:
+                    canConfront = gameState.hasEvidence(Evidence.FINANCIAL_RECORDS) || gameState.hasEvidence(Evidence.WILL_COPY);
                     break;
-                case REGINALD:
-                    canConfront = gameState.hasEvidence(Evidence.GROUNDSKEEPER_LOG);
+                case CHARLES:
+                    canConfront = gameState.hasEvidence(Evidence.FINANCIAL_RECORDS) && gameState.hasEvidence(Evidence.TORN_LETTER);
                     break;
             }
             if (canConfront) {
@@ -786,7 +1031,18 @@ public class GameScreen implements Screen {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append(narratorSystem.filterText(response));
+        sb.append(response);
+        // Random narrator bleed-through during channeling
+        String bleed = narratorSystem.maybeGetChannelingBleedThrough();
+        if (bleed != null) {
+            sb.append("\n\n").append(bleed);
+        }
+        // Distortions can still fire during interviews
+        String distortion = narratorSystem.maybeGetDistortion();
+        if (distortion != null) {
+            sb.append("\n\n[The narrator interjects: \"").append(distortion).append("\"]");
+            gameState.addNarratorDistortion(distortion);
+        }
         if (warning != null) {
             sb.append("\n\n--- ").append(narratorSystem.getWarning());
         }
@@ -830,7 +1086,11 @@ public class GameScreen implements Screen {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append(narratorSystem.filterText(reaction));
+        sb.append(reaction);
+        String bleedEvidence = narratorSystem.maybeGetChannelingBleedThrough();
+        if (bleedEvidence != null) {
+            sb.append("\n\n").append(bleedEvidence);
+        }
         if (warning != null) {
             sb.append("\n\n--- ").append(narratorSystem.getWarning());
         }
@@ -851,7 +1111,9 @@ public class GameScreen implements Screen {
 
         if (gameState.isGameOver()) { showGameOver(); return; }
 
-        StringBuilder sb = new StringBuilder(narratorSystem.filterText(response));
+        StringBuilder sb = new StringBuilder(response);
+        String bleedW = narratorSystem.maybeGetChannelingBleedThrough();
+        if (bleedW != null) sb.append("\n\n").append(bleedW);
         if (warning != null) sb.append("\n\n--- ").append(narratorSystem.getWarning());
 
         List<TextButton> buttons = new ArrayList<>();
@@ -868,7 +1130,9 @@ public class GameScreen implements Screen {
 
         if (gameState.isGameOver()) { showGameOver(); return; }
 
-        StringBuilder sb = new StringBuilder(narratorSystem.filterText(response));
+        StringBuilder sb = new StringBuilder(response);
+        String bleedB = narratorSystem.maybeGetChannelingBleedThrough();
+        if (bleedB != null) sb.append("\n\n").append(bleedB);
         if (warning != null) sb.append("\n\n--- ").append(narratorSystem.getWarning());
 
         List<TextButton> buttons = new ArrayList<>();
@@ -888,7 +1152,9 @@ public class GameScreen implements Screen {
 
         if (gameState.isGameOver()) { showGameOver(); return; }
 
-        StringBuilder sb = new StringBuilder(narratorSystem.filterText(response));
+        StringBuilder sb = new StringBuilder(response);
+        String bleedC = narratorSystem.maybeGetChannelingBleedThrough();
+        if (bleedC != null) sb.append("\n\n").append(bleedC);
         if (warning != null) sb.append("\n\n--- ").append(narratorSystem.getWarning());
 
         List<TextButton> buttons = new ArrayList<>();
@@ -915,19 +1181,19 @@ public class GameScreen implements Screen {
             winText.append("The evidence is overwhelming: James, facing disinheritance after his father discovered ");
             winText.append("the embezzlement, conspired with Daniel -- who had been laundering the money -- to kill ");
             winText.append("Harold before the new will could be signed.\n\n");
-            winText.append("Daniel entered through the study window, subdued the drugged Harold, and together they ");
-            winText.append("moved the body to the cellar to buy time. But they were sloppy. They left too many traces.\n\n");
-            winText.append("Margaret is cleared. Eleanor and Reginald cooperate fully with the investigation.\n\n");
+            winText.append("James killed the drugged Harold with the fireplace poker. Later, Daniel entered through ");
+            winText.append("the study window to help move the body to the cellar. But they were sloppy. They left too many traces.\n\n");
+            winText.append("Margaret is cleared. Marcus Blackwood and Charles Webb cooperate fully with the investigation.\n\n");
 
             // Variant text by evidence completeness
             int evidenceCount = gameState.getCollectedEvidence().size();
             int watchedCount = gameState.getWatchedTapes().size();
             int tapeCount = gameState.getCollectedTapes().size();
-            if (evidenceCount >= 9 && watchedCount >= 7) {
+            if (evidenceCount >= 10 && watchedCount >= 8) {
                 winText.append("Your case is IRONCLAD. Every piece of evidence accounted for, every tape reviewed. ");
                 winText.append("The prosecution has no gaps to exploit. James and Daniel will face the full weight of justice.\n\n");
             } else {
-                winText.append("Your case is solid, but gaps remain. Evidence: ").append(evidenceCount).append("/9, ");
+                winText.append("Your case is solid, but gaps remain. Evidence: ").append(evidenceCount).append("/10, ");
                 winText.append("Tapes watched: ").append(watchedCount).append("/").append(tapeCount).append(". ");
                 winText.append("A thorough investigator might have found more.\n\n");
             }
@@ -972,23 +1238,39 @@ public class GameScreen implements Screen {
             panelMode = PanelMode.TEXT;
         } else {
             // Wrong accusation: +15 awareness
+            gameState.incrementWrongAccusationCount();
             String warning = awarenessSystem.addAwareness(15);
 
             StringBuilder sb = new StringBuilder();
             sb.append("=== WRONG ACCUSATION ===\n\n");
 
-            switch (action) {
-                case "accuse_james":
-                    sb.append("James alone couldn't have done it. He needed help to move the body and clean up. There's an accomplice you're missing.");
-                    break;
-                case "accuse_margaret":
-                    sb.append("Margaret had no motive -- she wasn't even in the will. The evidence doesn't support this accusation.");
-                    break;
-                case "accuse_staff":
-                    sb.append("Eleanor and Reginald are loyal staff who were trying to protect the family. They're witnesses, not killers.");
-                    break;
-                default:
-                    sb.append("That accusation doesn't match the evidence.");
+            // Rich defense responses (Feature 4)
+            if (SuspectDialogue.hasAccusationDefense(action)) {
+                sb.append(SuspectDialogue.getAccusationDefense(action));
+
+                // James outburst auto-discovers body position contradiction
+                if ("accuse_james".equals(action) && !gameState.hasContradiction(Contradiction.BODY_POSITION)) {
+                    gameState.discoverContradiction(Contradiction.BODY_POSITION);
+                    sb.append("\n\n[CONTRADICTION DISCOVERED: Body Position -- James confirmed the body was moved.]");
+                }
+
+                // Boost cooperation for cleared suspects
+                switch (action) {
+                    case "accuse_margaret":
+                        gameState.adjustCooperation(Suspect.MARGARET, 15);
+                        sb.append("\n\n[Margaret's cooperation increased -- she's grateful to be cleared.]");
+                        break;
+                    case "accuse_marcus":
+                        gameState.adjustCooperation(Suspect.MARCUS, 15);
+                        sb.append("\n\n[Marcus's cooperation increased -- he's relieved to be cleared.]");
+                        break;
+                    case "accuse_charles":
+                        gameState.adjustCooperation(Suspect.CHARLES, 15);
+                        sb.append("\n\n[Charles's cooperation increased -- he's grateful you believe him.]");
+                        break;
+                }
+            } else {
+                sb.append("That accusation doesn't match the evidence.");
             }
 
             sb.append("\n\n+15 Awareness! The household is now very suspicious of you.");
@@ -1064,10 +1346,61 @@ public class GameScreen implements Screen {
         }
 
         sb.append("=== FINAL STATS ===\n");
-        sb.append("Evidence collected: ").append(evidenceCount).append("/9\n");
-        sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/7\n");
+        sb.append("Evidence collected: ").append(evidenceCount).append("/10\n");
+        sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/8\n");
         sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS).append("\n");
         sb.append("Commands used: ").append(gameState.getCommandCount());
+
+        textPanel.show(sb.toString());
+        panelMode = PanelMode.TEXT;
+    }
+
+    // --- Moral Endings (Feature 6) ---
+
+    private void handleMoralEnding(String action) {
+        gameState.setGameOver(true);
+
+        GameState.Ending ending;
+        String endingText;
+        switch (action) {
+            case "ending_seal":
+                ending = GameState.Ending.SEAL_THE_WALL;
+                endingText = ClimaxContent.ENDING_SEAL_WALL;
+                break;
+            case "ending_destroy":
+                ending = GameState.Ending.DESTROY_TAPES;
+                endingText = ClimaxContent.ENDING_DESTROY_TAPES;
+                break;
+            case "ending_escape":
+                ending = GameState.Ending.ESCAPE_MANOR;
+                endingText = ClimaxContent.ENDING_ESCAPE;
+                break;
+            default:
+                return;
+        }
+
+        gameState.setChosenEnding(ending);
+        gameState.addEvent("Chose ending: " + ending.name());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(endingText);
+
+        // Stats
+        sb.append("\n\n=== FINAL STATS ===\n");
+        sb.append("Evidence collected: ").append(gameState.getCollectedEvidence().size()).append("/10\n");
+        sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/8\n");
+        sb.append("Anomalies discovered: ").append(gameState.getAnomalyCount()).append("/7\n");
+        sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS).append("\n");
+        sb.append("Commands used: ").append(gameState.getCommandCount());
+
+        // Check ending achievements
+        List<Achievement> newAchievements = achievementSystem.checkOnEnding(ending);
+        if (!newAchievements.isEmpty()) {
+            sb.append("\n\n=== ACHIEVEMENTS UNLOCKED ===\n\n");
+            for (Achievement a : newAchievements) {
+                sb.append("* ").append(a.getDisplayName()).append(" -- ").append(a.getDescription()).append("\n");
+            }
+        }
 
         textPanel.show(sb.toString());
         panelMode = PanelMode.TEXT;
@@ -1109,12 +1442,12 @@ public class GameScreen implements Screen {
             sb.append("PRIMARY OBJECTIVE:\n");
             sb.append("* Make your accusation -- you have enough evidence\n\n");
 
-            if (evidenceCount < 9) {
+            if (evidenceCount < 10) {
                 sb.append("OPTIONAL:\n");
-                sb.append("* Collect remaining evidence (").append(evidenceCount).append("/9)\n");
+                sb.append("* Collect remaining evidence (").append(evidenceCount).append("/10)\n");
             }
-            if (tapeCount < 7) {
-                sb.append("* Find remaining tapes (").append(tapeCount).append("/7)\n");
+            if (tapeCount < 8) {
+                sb.append("* Find remaining tapes (").append(tapeCount).append("/8)\n");
             }
             if (watchedCount < tapeCount) {
                 sb.append("* Watch unwatched tapes (").append(watchedCount).append("/").append(tapeCount).append(")\n");
@@ -1133,13 +1466,13 @@ public class GameScreen implements Screen {
             sb.append("* Talk to the suspects to gather information\n\n");
 
             sb.append("PROGRESS:\n");
-            sb.append("* Evidence: ").append(evidenceCount).append("/9\n");
-            sb.append("* Tapes: ").append(tapeCount).append("/7\n");
+            sb.append("* Evidence: ").append(evidenceCount).append("/10\n");
+            sb.append("* Tapes: ").append(tapeCount).append("/8\n");
         } else {
             // Mid game
             sb.append("PRIMARY OBJECTIVES:\n");
-            sb.append("* Continue gathering evidence (").append(evidenceCount).append("/9)\n");
-            sb.append("* Find and watch tapes (").append(tapeCount).append("/7 found, ").append(watchedCount).append(" watched)\n");
+            sb.append("* Continue gathering evidence (").append(evidenceCount).append("/10)\n");
+            sb.append("* Find and watch tapes (").append(tapeCount).append("/8 found, ").append(watchedCount).append(" watched)\n");
             sb.append("* Interview suspects and show them evidence\n\n");
 
             int jamesEvidence = evidenceSystem.getJamesEvidenceCount();
@@ -1236,8 +1569,8 @@ public class GameScreen implements Screen {
             "will remain unsolved.\n\n" +
             "The killers go free.\n\n" +
             "Awareness reached " + gameState.getAwareness() + "/" + GameState.MAX_AWARENESS + ".\n" +
-            "Evidence collected: " + gameState.getCollectedEvidence().size() + "/9\n" +
-            "Tapes collected: " + gameState.getCollectedTapes().size() + "/7");
+            "Evidence collected: " + gameState.getCollectedEvidence().size() + "/10\n" +
+            "Tapes collected: " + gameState.getCollectedTapes().size() + "/8");
         panelMode = PanelMode.TEXT;
     }
 
@@ -1380,6 +1713,11 @@ public class GameScreen implements Screen {
         textPanel.update(delta);
         textPanel.render(batch, font);
 
+        // Draw mini-game overlay (on top of text panel)
+        if (documentGame.isActive()) {
+            documentGame.render(batch, font);
+        }
+
         batch.end();
     }
 
@@ -1409,6 +1747,7 @@ public class GameScreen implements Screen {
         textPanel.dispose();
         awarenessMeter.dispose();
         actionBar.dispose();
+        documentGame.dispose();
         TextButton.disposeTextures();
     }
 }
