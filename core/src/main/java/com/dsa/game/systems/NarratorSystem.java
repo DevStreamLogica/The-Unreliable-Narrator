@@ -4,6 +4,7 @@ import com.dsa.game.data.NarratorText;
 import com.dsa.game.data.NarratorText.Mood;
 import com.dsa.game.state.Contradiction;
 import com.dsa.game.state.Evidence;
+import com.dsa.game.state.Tape;
 import com.dsa.game.state.EntityAnomaly;
 import com.dsa.game.state.GameState;
 
@@ -19,8 +20,8 @@ import java.util.Set;
 public class NarratorSystem {
 
     private static final String NARRATOR_HEADER =
-        "[The voice on the tape crackles to life...]\n\n" +
-        "\"Ah, you've found Arthur's recordings. Good. I've been waiting for someone " +
+        "[A voice fills your mind -- not from any direction, but from everywhere at once. Like a memory that isn't yours.]\n\n" +
+        "\"Ah. You came. Good. I've been waiting for someone " +
         "who would listen. My name doesn't matter -- what matters is what happened " +
         "in this house. I'll guide you as best I can, but understand: the longer you " +
         "stay, the more THEY notice. The walls have ears here. Literally.\n\n" +
@@ -154,8 +155,9 @@ public class NarratorSystem {
     /**
      * Checks if a distortion text contradicts evidence the player already has,
      * and auto-discovers the narrator contradiction if so.
+     * Public so GameScreen can call it when distortions fire outside filterText().
      */
-    private void checkDistortionContradictions(String distortion) {
+    public void checkDistortionContradictions(String distortion) {
         Map<String, Contradiction> map = NarratorText.getDistortionContradictions();
         for (Map.Entry<String, Contradiction> entry : map.entrySet()) {
             if (distortion.contains(entry.getKey())) {
@@ -166,7 +168,7 @@ public class NarratorSystem {
                 boolean hasContradictingEvidence = false;
                 switch (c) {
                     case NARRATOR_WEAPON:
-                        hasContradictingEvidence = state.hasEvidence(Evidence.LETTER_OPENER);
+                        hasContradictingEvidence = state.hasEvidence(Evidence.FIREPLACE_POKER);
                         break;
                     case NARRATOR_BOOTS:
                         hasContradictingEvidence = state.hasEvidence(Evidence.MUDDY_BOOTS);
@@ -175,7 +177,7 @@ public class NarratorSystem {
                         hasContradictingEvidence = state.hasEvidence(Evidence.TORN_LETTER);
                         break;
                     case NARRATOR_TIME:
-                        hasContradictingEvidence = state.hasEvidence(Evidence.SLEEPING_POWDER);
+                        hasContradictingEvidence = state.hasTape(Tape.TAPE_CHARLES_INTERVIEW);
                         break;
                     default:
                         break;

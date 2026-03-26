@@ -28,6 +28,7 @@ public class EvidenceSystem {
         if (state.hasEvidence(Evidence.WILL_COPY)) count++;
         if (state.hasEvidence(Evidence.TORN_LETTER)) count++;
         if (state.hasEvidence(Evidence.BLACKMAIL_NOTE)) count++; // James planted it to frame Margaret
+        if (state.hasEvidence(Evidence.FIREPLACE_POKER)) count++; // actual murder weapon
         if (state.hasTape(Tape.TAPE_ARGUMENT)) count++;
         if (state.hasTape(Tape.TAPE_JAMES_INTERVIEW)) count++;
         return count;
@@ -66,8 +67,20 @@ public class EvidenceSystem {
             sb.append("=== TAPES ===\n\n");
             for (Tape t : state.getCollectedTapes()) {
                 boolean watched = state.hasWatchedTape(t);
+                boolean unlocked = state.isUnlockedTape(t);
+                boolean damaged = (t == Tape.TAPE_ARTHUR_DEATH
+                    || t == Tape.TAPE_DANIEL_INTERVIEW
+                    || t == Tape.TAPE_MARGARET_ACCOUNT);
                 sb.append("* ").append(t.getTitle());
-                sb.append(watched ? " [WATCHED]" : " [NEW - PLAY]");
+                if (watched) {
+                    sb.append(" [WATCHED]");
+                } else if (!unlocked) {
+                    sb.append(" [LOCKED]");
+                } else if (damaged && !state.isTapeRepaired(t)) {
+                    sb.append(" [DAMAGED -- needs repair solution: ").append(state.getRepairSolutionsRemaining()).append(" available]");
+                } else {
+                    sb.append(" [PLAY AVAILABLE]");
+                }
                 sb.append("\n");
             }
         }

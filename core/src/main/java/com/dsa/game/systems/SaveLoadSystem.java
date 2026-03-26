@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.dsa.game.navigation.Room;
 import com.dsa.game.state.*;
+import com.dsa.game.state.Achievement;
 
 import java.util.*;
 
@@ -50,6 +51,18 @@ public class SaveLoadSystem {
         public int wrongAccusationCount;
         public String chosenEnding = "NONE";
         public boolean hasTapeRepairKit;
+        public boolean margaretTopOpen;
+        public boolean margaretBotOpen;
+        public boolean margaretShoesExamined;
+
+        // Tape progression system
+        public List<String> unlockedTapes = new ArrayList<>();
+        public List<String> learnedCodes = new ArrayList<>();
+        public List<String> repairedTapes = new ArrayList<>();
+        public int repairSolutionsRemaining = 0;
+
+        // Achievement persistence
+        public List<String> unlockedAchievements = new ArrayList<>();
 
         /** No-arg constructor required by LibGDX Json. */
         public SaveData() {}
@@ -108,6 +121,23 @@ public class SaveLoadSystem {
         data.wrongAccusationCount = state.getWrongAccusationCount();
         data.chosenEnding = state.getChosenEnding().name();
         data.hasTapeRepairKit = state.hasTapeRepairKit();
+        data.margaretTopOpen = state.isMargaretTopOpen();
+        data.margaretBotOpen = state.isMargaretBotOpen();
+        data.margaretShoesExamined = state.isMargaretShoesExamined();
+
+        // Tape progression system
+        for (Tape t : state.getUnlockedTapes()) {
+            data.unlockedTapes.add(t.name());
+        }
+        data.learnedCodes.addAll(state.getLearnedCodes());
+        for (Tape t : state.getRepairedTapes()) {
+            data.repairedTapes.add(t.name());
+        }
+        data.repairSolutionsRemaining = state.getRepairSolutionsRemaining();
+
+        for (Achievement a : state.getUnlockedAchievements()) {
+            data.unlockedAchievements.add(a.name());
+        }
 
         Json json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
@@ -132,6 +162,7 @@ public class SaveLoadSystem {
         try {
             Json json = new Json();
             SaveData data = json.fromJson(SaveData.class, file.readString());
+            if (data == null) return null;
 
             state.clearAllState();
 
@@ -203,6 +234,35 @@ public class SaveLoadSystem {
                 state.setChosenEndingByName(data.chosenEnding);
             }
             state.setHasTapeRepairKit(data.hasTapeRepairKit);
+            state.setMargaretTopOpen(data.margaretTopOpen);
+            state.setMargaretBotOpen(data.margaretBotOpen);
+            state.setMargaretShoesExamined(data.margaretShoesExamined);
+
+            // Tape progression system
+            if (data.unlockedTapes != null) {
+                for (String name : data.unlockedTapes) {
+                    state.forceUnlockTape(Tape.valueOf(name));
+                }
+            }
+            if (data.learnedCodes != null) {
+                for (String code : data.learnedCodes) {
+                    state.forceLearnCode(code);
+                }
+            }
+            if (data.repairedTapes != null) {
+                for (String name : data.repairedTapes) {
+                    state.forceRepairTape(Tape.valueOf(name));
+                }
+            }
+            state.setRepairSolutionsRemaining(data.repairSolutionsRemaining);
+
+            if (data.unlockedAchievements != null) {
+                for (String name : data.unlockedAchievements) {
+                    try {
+                        state.forceUnlockAchievement(Achievement.valueOf(name));
+                    } catch (IllegalArgumentException ignored) {}
+                }
+            }
 
             return Room.RoomID.valueOf(data.currentRoom);
         } catch (Exception e) {

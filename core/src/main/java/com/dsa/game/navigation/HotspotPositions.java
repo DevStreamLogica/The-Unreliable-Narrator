@@ -18,8 +18,14 @@ public class HotspotPositions {
     public static final float FORWARD_X = SCREEN_WIDTH / 2;
     public static final float FORWARD_Y = SCREEN_HEIGHT - 150;
 
-    public static final float BACK_X = SCREEN_WIDTH / 2;
-    public static final float BACK_Y = 100;
+    // Back button image position (bottom-right, above action bar)
+    public static final float BACK_BTN_W = 120;
+    public static final float BACK_BTN_H = 48;
+    public static final float BACK_BTN_X = SCREEN_WIDTH - BACK_BTN_W - 10;
+    public static final float BACK_BTN_Y = 42;
+
+    public static final float BACK_X = BACK_BTN_X + BACK_BTN_W / 2;
+    public static final float BACK_Y = BACK_BTN_Y + BACK_BTN_H / 2;
 
     public static final float DOOR_CENTER_X = SCREEN_WIDTH / 2;
     public static final float DOOR_CENTER_Y = SCREEN_HEIGHT / 2;
@@ -56,10 +62,10 @@ public class HotspotPositions {
                 break;
 
             case ARROW_BACK:
-                x = BACK_X - ARROW_SIZE/2;
-                y = BACK_Y - ARROW_SIZE/2;
-                width = ARROW_SIZE;
-                height = ARROW_SIZE;
+                x = BACK_BTN_X;
+                y = BACK_BTN_Y;
+                width = BACK_BTN_W;
+                height = BACK_BTN_H;
                 break;
 
             case DOOR:

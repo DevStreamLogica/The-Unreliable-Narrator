@@ -63,7 +63,6 @@ public class InterviewSystem {
         // Margaret deflection (Feature 3): at coop 25-59, 40% chance for non-Margaret suspects
         if (coop < 60 && s != Suspect.MARGARET
                 && SuspectDialogue.hasMargaretDeflection(s)
-                && !state.hasContradiction(Contradiction.BODY_POSITION)
                 && random.nextInt(100) < 40) {
             return SuspectDialogue.getMargaretDeflection(s);
         }

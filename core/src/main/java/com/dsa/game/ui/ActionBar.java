@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Bottom action bar with buttons: INVENTORY, NOTEBOOK, SUSPECTS, HINT, ACCUSE
+ * Bottom action bar with buttons: INVENTORY
  */
 public class ActionBar {
 
@@ -33,8 +33,8 @@ public class ActionBar {
         barTexture = new Texture(p);
         p.dispose();
 
-        String[] labels = {"INVENTORY", "NOTEBOOK", "SUSPECTS", "HINT", "ACCUSE"};
-        String[] actions = {"inventory", "notebook", "suspects", "hint", "accuse"};
+        String[] labels = {"INVENTORY"};
+        String[] actions = {"inventory"};
 
         clusterWidth = labels.length * BUTTON_WIDTH + (labels.length - 1) * BUTTON_MARGIN;
         clusterX = (DSAGame.SCREEN_WIDTH - clusterWidth) / 2;

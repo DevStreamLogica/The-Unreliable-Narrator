@@ -92,13 +92,17 @@ public class RoomManager {
 
                 study.addConnection(Direction.WEST, Room.RoomID.ENTRANCE);
 
-                study.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.ENTRANCE));
+                Hotspot studyBack = HotspotPositions.createStandardHotspot(
+                                Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.ENTRANCE);
+                studyBack.setTooltip("Go back");
+                study.addHotspot(studyBack);
 
                 parlor.addConnection(Direction.EAST, Room.RoomID.ENTRANCE);
 
-                parlor.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.ENTRANCE));
+                Hotspot parlorBack = HotspotPositions.createStandardHotspot(
+                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.ENTRANCE);
+                parlorBack.setTooltip("Go back");
+                parlor.addHotspot(parlorBack);
 
                 kitchen.addConnection(Direction.SOUTH, Room.RoomID.ENTRANCE);
                 kitchen.addConnection(Direction.WEST, Room.RoomID.SERVANTS_QUARTERS);
@@ -106,16 +110,18 @@ public class RoomManager {
 
                 Hotspot kitchenBackArrow = new Hotspot(Hotspot.HotspotType.ARROW_BACK, Direction.SOUTH,
                                 Room.RoomID.ENTRANCE);
-                kitchenBackArrow.setBounds(600, 60, 80, 80);
+                kitchenBackArrow.setBounds(HotspotPositions.BACK_BTN_X, HotspotPositions.BACK_BTN_Y,
+                                HotspotPositions.BACK_BTN_W, HotspotPositions.BACK_BTN_H);
+                kitchenBackArrow.setTooltip("Go back");
                 kitchen.addHotspot(kitchenBackArrow);
 
                 Hotspot servantsArrow = new Hotspot(Hotspot.HotspotType.ARROW_LEFT, Direction.WEST,
                                 Room.RoomID.SERVANTS_QUARTERS);
-                servantsArrow.setBounds(190, 110, 110, 320);
+                servantsArrow.setBounds(600, 200, 105, 200);
                 kitchen.addHotspot(servantsArrow);
 
                 Hotspot cellarDoor = new Hotspot(Hotspot.HotspotType.STAIRS_DOWN, Direction.DOWN, Room.RoomID.CELLAR);
-                cellarDoor.setBounds(600, 200, 105, 200);
+                cellarDoor.setBounds(190, 110, 110, 320);
                 kitchen.addHotspot(cellarDoor);
 
                 guestRooms.addConnection(Direction.DOWN, Room.RoomID.ENTRANCE);
@@ -138,71 +144,96 @@ public class RoomManager {
                 Hotspot jamesExit = new Hotspot(Hotspot.HotspotType.DOOR, Direction.WEST, Room.RoomID.GUEST_ROOMS);
                 jamesExit.setBounds(50, 200, 150, 300);
                 jamesRoom.addHotspot(jamesExit);
+                Hotspot jamesBack = HotspotPositions.createStandardHotspot(
+                                Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.GUEST_ROOMS);
+                jamesBack.setTooltip("Go back");
+                jamesRoom.addHotspot(jamesBack);
 
                 margaretRoom.addConnection(Direction.EAST, Room.RoomID.GUEST_ROOMS);
-                Hotspot margaretExit = new Hotspot(Hotspot.HotspotType.DOOR, Direction.EAST, Room.RoomID.GUEST_ROOMS);
-                margaretExit.setBounds(1080, 200, 150, 300);
-                margaretRoom.addHotspot(margaretExit);
+                Hotspot margaretBack = HotspotPositions.createStandardHotspot(
+                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.GUEST_ROOMS);
+                margaretBack.setTooltip("Go back");
+                margaretRoom.addHotspot(margaretBack);
 
                 shed.addConnection(Direction.EAST, Room.RoomID.SERVANTS_QUARTERS);
 
-                shed.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.SERVANTS_QUARTERS));
+                Hotspot shedBack = HotspotPositions.createStandardHotspot(
+                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.SERVANTS_QUARTERS);
+                shedBack.setTooltip("Go back");
+                shed.addHotspot(shedBack);
+                Hotspot shedServantsDoor = new Hotspot(Hotspot.HotspotType.DOOR, Direction.EAST,
+                                Room.RoomID.SERVANTS_QUARTERS);
+                shedServantsDoor.setBounds(1100, 111, 125, 429);
+                shed.addHotspot(shedServantsDoor);
 
                 servants.addConnection(Direction.EAST, Room.RoomID.KITCHEN);
                 servants.addConnection(Direction.WEST, Room.RoomID.GROUNDSKEEPER_SHED);
 
-                servants.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.KITCHEN));
-                servants.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.DOOR, Direction.WEST, Room.RoomID.GROUNDSKEEPER_SHED));
-
+                Hotspot servantsBack = HotspotPositions.createStandardHotspot(
+                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.KITCHEN);
+                servantsBack.setTooltip("Go back");
+                servants.addHotspot(servantsBack);
+                Hotspot shedDoor = new Hotspot(Hotspot.HotspotType.DOOR, Direction.WEST,
+                                Room.RoomID.GROUNDSKEEPER_SHED);
+                shedDoor.setBounds(55, 111, 125, 429);
+                servants.addHotspot(shedDoor);
                 cellar.addConnection(Direction.UP, Room.RoomID.KITCHEN);
 
                 cellar.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.STAIRS_UP, Direction.UP, Room.RoomID.KITCHEN));
+                                Hotspot.HotspotType.ARROW_BACK, Direction.UP, Room.RoomID.KITCHEN));
         }
 
         private void setupExamineHotspots() {
                 Room study = rooms.get(Room.RoomID.STUDY);
-                study.addHotspot(new Hotspot("desk", "Examine: Harold's Desk", 490, 570, 300, 100));
-                study.addHotspot(new Hotspot("drawers", "Examine: Desk Drawers", 520, 640, 100, 50));
-                study.addHotspot(new Hotspot("papers", "Examine: Papers", 580, 600, 100, 40));
-                study.addHotspot(new Hotspot("bookshelves", "Examine: Bookshelves", 920, 240, 80, 230));
-                study.addHotspot(new Hotspot("window", "Examine: Window", 540, 290, 200, 150));
-                study.addHotspot(new Hotspot("fireplace", "Examine: Fireplace", 220, 240, 100, 330));
-                study.addHotspot(new Hotspot("ashes", "Examine: Fireplace Ashes", 240, 520, 60, 40));
-                study.addHotspot(new Hotspot("poker", "Examine: Fireplace Poker", 305, 470, 40, 100));
-                study.addHotspot(new Hotspot("under_desk", "Examine: Under the Desk", 540, 670, 100, 40));
+                study.addHotspot(new Hotspot("ashes", "Examine: Fireplace Ashes", 265, 156, 60, 40));
+                study.addHotspot(new Hotspot("poker", "Examine: Fireplace Poker", 583, 272, 60, 20));
+                study.addHotspot(new Hotspot("papers", "Examine: Papers", 653, 270, 30, 20));
+                study.addHotspot(new Hotspot("drawers", "Examine: Desk Drawers", 473, 167, 65, 70));
+                study.addHotspot(new Hotspot("drawers", "Examine: Desk Drawers", 700, 161, 80, 70));
+                study.addHotspot(new Hotspot("desk", "Examine: Harold's Desk", 456, 256, 330, 50));
+                study.addHotspot(new Hotspot("bookshelves", "Examine: Bookshelves", 835, 225, 460, 305));
+                study.addHotspot(new Hotspot("bookshelves", "Examine: Bookshelves", 950, 150, 460, 305));
+                study.addHotspot(new Hotspot("bookshelves", "Examine: Bookshelves", 1065, 100, 460, 305));
+                study.addHotspot(new Hotspot("bookshelves", "Examine: Bookshelves", 964, 535, 460, 300));
+                study.addHotspot(new Hotspot("window", "Examine: Window", 520, 310, 70, 150));
+                study.addHotspot(new Hotspot("window", "Examine: Window", 650, 310, 80, 150));
+                study.addHotspot(new Hotspot("fireplace", "Examine: Fireplace", 122, 96, 140, 900));
+                study.addHotspot(new Hotspot("under_desk", "Examine: Under the Desk", 606, 154, 60, 20));
 
                 Room parlor = rooms.get(Room.RoomID.PARLOR);
-                parlor.addHotspot(new Hotspot("grandfather_clock", "Examine: Grandfather Clock", 1000, 250, 60, 200));
-                parlor.addHotspot(new Hotspot("briefcase", "Examine: Briefcase", 420, 340, 80, 50));
-                parlor.addHotspot(new Hotspot("fireplace", "Examine: Fireplace", 580, 240, 120, 330));
+                parlor.addHotspot(new Hotspot("grandfather_clock", "Examine: Grandfather Clock", 880, 200, 85, 300));
+                parlor.addHotspot(new Hotspot("briefcase", "Examine: Briefcase", 565, 180, 90, 50));
+                parlor.addHotspot(new Hotspot("fireplace", "Examine: Fireplace", 520, 240, 180, 280));
 
                 Room kitchen = rooms.get(Room.RoomID.KITCHEN);
-                kitchen.addHotspot(new Hotspot("storage_cellar", "Examine: Storage Cellar Door", 600, 200, 105, 200));
+                kitchen.addHotspot(new Hotspot("storage_cellar", "Go Down to Cellar", 190, 110, 110, 320));
                 kitchen.addHotspot(new Hotspot("flour_tin", "Examine: Flour Tin", 1030, 190, 90, 115));
+                kitchen.addHotspot(new Hotspot("kitchen_floor", "Examine: Tape Recorder", 510, 122, 52, 28));
 
                 Room jamesRoom = rooms.get(Room.RoomID.JAMES_ROOM);
-                jamesRoom.addHotspot(new Hotspot("coat", "Examine: James's Coat", 750, 330, 60, 30));
-                jamesRoom.addHotspot(new Hotspot("wardrobe", "Examine: Wardrobe", 700, 200, 150, 250));
+                // coat hotspot added dynamically after wardrobe is opened
+                jamesRoom.addHotspot(new Hotspot("wardrobe", "Examine: Wardrobe", 797, 292, 268, 257));
 
                 Room margaretRoom = rooms.get(Room.RoomID.MARGARET_ROOM);
-                margaretRoom.addHotspot(new Hotspot("letter", "Examine: Letter on Dresser", 350, 330, 60, 30));
-                margaretRoom.addHotspot(new Hotspot("dresser", "Examine: Dresser", 300, 250, 200, 150));
+                margaretRoom.addHotspot(new Hotspot("lamp", "Examine: Bedside Lamp", 213, 348, 77, 60));
+                margaretRoom.addHotspot(new Hotspot("lamp", "Examine: Bedside Lamp", 248, 279, 6, 64));
+                margaretRoom.addHotspot(new Hotspot("lamp", "Examine: Bedside Lamp", 234, 270, 34, 6));
+                margaretRoom.addHotspot(new Hotspot("tape_recorder", "Examine: Tape Recorder", 280, 272, 72, 56));
+                margaretRoom.addHotspot(new Hotspot("top_drawer", "Examine: Top Drawer", 241, 207, 90, 49));
+                margaretRoom.addHotspot(new Hotspot("bottom_drawer", "Examine: Bottom Drawer", 244, 121, 86, 85));
 
                 Room shed = rooms.get(Room.RoomID.GROUNDSKEEPER_SHED);
-                shed.addHotspot(new Hotspot("logbook", "Examine: Groundskeeper's Logbook", 540, 340, 100, 50));
-                shed.addHotspot(new Hotspot("shelf", "Examine: Shelf", 640, 340, 100, 50));
+                shed.addHotspot(new Hotspot("logbook", "Examine: Groundskeeper's Logbook", 982, 274, 50, 44));
+                shed.addHotspot(new Hotspot("shelf", "Examine: Shelf", 620, 231, 157, 187));
 
                 Room servants = rooms.get(Room.RoomID.SERVANTS_QUARTERS);
-                servants.addHotspot(new Hotspot("bedpost", "Examine: Wooden Bedpost", 350, 320, 60, 120));
-                servants.addHotspot(new Hotspot("floorboard", "Examine: Loose Floorboard", 520, 330, 100, 40));
+                servants.addHotspot(new Hotspot("bedpost", "Examine: Wooden Bedpost", 420, 176, 20, 200));
+                servants.addHotspot(new Hotspot("drawer", "Examine: Nightstand", 578, 299, 36, 10));
 
                 Room cellar = rooms.get(Room.RoomID.CELLAR);
-                cellar.addHotspot(new Hotspot("flour_sacks", "Examine: Flour Sacks", 540, 370, 60, 50));
-                cellar.addHotspot(new Hotspot("wine_rack", "Examine: Wine Rack", 290, 240, 60, 230));
+                cellar.addHotspot(new Hotspot("cellar_shelf", "Examine: Cellar Shelf", 525, 259, 234, 106));
+                cellar.addHotspot(new Hotspot("flour_sacks", "Examine: Flour Sacks", 852, 111, 138, 118));
+                cellar.addHotspot(new Hotspot("wine_rack", "Examine: Wine Rack", 73, 109, 337, 448));
         }
 
         public boolean navigateTo(Room.RoomID targetRoom) {

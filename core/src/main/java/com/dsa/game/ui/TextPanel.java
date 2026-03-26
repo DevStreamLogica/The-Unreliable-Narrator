@@ -9,7 +9,9 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.dsa.game.DSAGame;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Overlay panel that renders on top of the room view.
@@ -29,6 +31,12 @@ public class TextPanel {
     private boolean revealComplete = true;
     private static float charsPerSecond = 40f;
     private String fullText = "";
+    // Processed text with pause markers stripped (used for all display/height logic)
+    private String displayText = "";
+    // Map of display-text char position -> pause duration in seconds
+    private final Map<Integer, Float> pausePositions = new HashMap<>();
+    // Remaining time on the current active pause
+    private float currentPause = 0;
 
     // Panel dimensions
     private static final float PANEL_X = 40;
@@ -67,11 +75,13 @@ public class TextPanel {
     /** Show panel with text only. */
     public void show(String text) {
         this.fullText = text;
+        processText(text);
         this.text = "";
         this.scrollOffset = 0;
         this.revealTimer = 0;
         this.revealedChars = 0;
         this.revealComplete = false;
+        this.currentPause = 0;
         this.actionButtons.clear();
         this.visible = true;
     }
@@ -79,11 +89,13 @@ public class TextPanel {
     /** Show panel with text and action buttons. */
     public void show(String text, List<TextButton> buttons) {
         this.fullText = text;
+        processText(text);
         this.text = "";
         this.scrollOffset = 0;
         this.revealTimer = 0;
         this.revealedChars = 0;
         this.revealComplete = false;
+        this.currentPause = 0;
         this.actionButtons.clear();
         this.actionButtons.addAll(buttons);
         layoutButtons();
@@ -93,24 +105,52 @@ public class TextPanel {
     /** Show panel with only action buttons (no text header). */
     public void showButtons(String title, List<TextButton> buttons) {
         this.fullText = title;
+        processText(title);
         this.text = "";
         this.scrollOffset = 0;
         this.revealTimer = 0;
         this.revealedChars = 0;
         this.revealComplete = false;
+        this.currentPause = 0;
         this.actionButtons.clear();
         this.actionButtons.addAll(buttons);
         layoutButtons();
         this.visible = true;
     }
 
+    /**
+     * Parses {p} (0.35s pause) and {P} (0.7s pause) markers out of raw text,
+     * building displayText (marker-free) and a pausePositions map.
+     */
+    private void processText(String raw) {
+        StringBuilder display = new StringBuilder();
+        pausePositions.clear();
+        int i = 0;
+        while (i < raw.length()) {
+            if (i + 2 < raw.length() && raw.charAt(i) == '{' && raw.charAt(i + 2) == '}') {
+                char code = raw.charAt(i + 1);
+                if (code == 'p') {
+                    pausePositions.put(display.length(), 0.35f);
+                    i += 3;
+                    continue;
+                } else if (code == 'P') {
+                    pausePositions.put(display.length(), 0.7f);
+                    i += 3;
+                    continue;
+                }
+            }
+            display.append(raw.charAt(i));
+            i++;
+        }
+        displayText = display.toString();
+    }
+
     private void layoutButtons() {
         float buttonWidth = PANEL_WIDTH - PADDING * 2 - 40;
-        float startY = PANEL_Y + PANEL_HEIGHT - 80 - (fullText.isEmpty() ? 0 : getFullTextHeight());
-        // Stack buttons from top
-        for (int i = 0; i < actionButtons.size(); i++) {
-            float y = startY - i * (BUTTON_HEIGHT + BUTTON_SPACING);
-            if (y < PANEL_Y + PADDING) y = PANEL_Y + PADDING;
+        // Anchor buttons at the bottom of the panel, stacking upward
+        float bottomY = PANEL_Y + PADDING;
+        for (int i = actionButtons.size() - 1; i >= 0; i--) {
+            float y = bottomY + (actionButtons.size() - 1 - i) * (BUTTON_HEIGHT + BUTTON_SPACING);
             actionButtons.get(i).setPosition(PANEL_X + PADDING + 20, y);
             actionButtons.get(i).getBounds().width = buttonWidth;
             actionButtons.get(i).getBounds().height = BUTTON_HEIGHT;
@@ -125,30 +165,51 @@ public class TextPanel {
 
     private float getFullTextHeight() {
         // Estimate height using the complete text (before typewriter reveal)
-        String[] lines = wordWrap(fullText).split("\n");
+        String[] lines = wordWrap(displayText).split("\n");
         return lines.length * 22f;
     }
 
     /** Update typewriter text reveal animation. */
     public void update(float delta) {
         if (revealComplete) return;
+
+        // Hold on active pause
+        if (currentPause > 0) {
+            currentPause -= delta;
+            return;
+        }
+
         revealTimer += delta;
         int target = (int)(revealTimer * charsPerSecond);
-        if (target >= fullText.length()) {
+
+        if (target >= displayText.length()) {
             revealComplete = true;
-            text = fullText;
-            revealedChars = fullText.length();
+            text = displayText;
+            revealedChars = displayText.length();
         } else {
-            text = fullText.substring(0, target);
+            // Check for a pause marker between current position and new target
+            for (int i = revealedChars; i < target; i++) {
+                Float pause = pausePositions.get(i);
+                if (pause != null) {
+                    revealedChars = i;
+                    text = displayText.substring(0, i);
+                    currentPause = pause;
+                    revealTimer = (float) i / charsPerSecond;
+                    pausePositions.remove(i); // consume so it doesn't re-trigger
+                    return;
+                }
+            }
+            text = displayText.substring(0, target);
             revealedChars = target;
         }
     }
 
     /** Skip the typewriter animation and show all text immediately. */
     public void skipReveal() {
-        text = fullText;
+        text = displayText;
         revealComplete = true;
-        revealedChars = fullText.length();
+        revealedChars = displayText.length();
+        currentPause = 0;
     }
 
     public void hide() {

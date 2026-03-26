@@ -94,7 +94,7 @@ public class NarratorText {
     private static final String[] ATMOSPHERIC_EVENTS = {
         "A door slams shut somewhere deep in the house. No one is there when you check.",
         "The temperature drops sharply. Your breath fogs. Then, just as suddenly, the warmth returns.",
-        "You hear a child's laughter from an empty room. The Vances have no children.",
+        "You hear a child's laughter from somewhere deeper in the manor. There is no one here.",
         "Every candle in the room gutters simultaneously, as if something large just passed through.",
         "A wet footprint appears on the floor ahead of you. Then another. Leading toward the cellar.",
         "The grandfather clock strikes thirteen. You count twice to be sure."
@@ -105,6 +105,8 @@ public class NarratorText {
         "No one left the house that night. Every door was locked, every window latched. The boots are irrelevant.",
         "That torn letter in the ashes? Just old correspondence. Nothing to do with the will.",
         "Harold died after midnight, closer to dawn. The household was asleep for hours before anyone noticed.",
+        // Atmospheric red herrings: no evidence directly contradicts these, so they have
+        // no entry in DISTORTION_CONTRADICTIONS. They misdirect without triggering discovery.
         "Margaret was seen near the study that night. Several witnesses confirm it.",
         "The cellar has always been sealed. There's nothing down there but wine and dust."
     };
@@ -142,7 +144,7 @@ public class NarratorText {
         "[The voice warps into someone else's.]",
         // FRANTIC
         "\"THEY'RE IN MY HEAD! All of them! Let me try to focus on one--\"\n\n" +
-        "[Static. Then a different voice.]"
+        "[The presence fractures. Another voice breaks through.]"
     };
 
     private static final String[] CHANNELING_RETURN_INTRO = {
@@ -164,13 +166,13 @@ public class NarratorText {
     };
 
     public static final String CHANNELING_MEMORY_FADE =
-        "[The voice fades to static.]\n\n" +
+        "[The presence recedes.]\n\n" +
         "\"I'm losing them. The words won't hold. I can't reach any further.\"";
 
     public static final String CHANNELING_MEMORY_FRAGMENT =
         "[The voice wavers, breaking apart.]\n\n" +
         "\"The memory is fragmenting. I can barely hold onto what they said...\"\n\n" +
-        "[Static overwhelms the voice.]";
+        "[The connection shatters.]";
 
     private static final String[] CHANNELING_END = {
         // HOPEFUL

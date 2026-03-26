@@ -17,20 +17,20 @@ public class RoomDescriptions {
             "grandfather_clock", "briefcase", "fireplace"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.KITCHEN, Arrays.asList(
-            "storage_cellar", "flour_tin"
+            "storage_cellar", "flour_tin", "kitchen_floor"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.GUEST_ROOMS, Collections.emptyList());
         EXAMINABLE_OBJECTS.put(Room.RoomID.JAMES_ROOM, Arrays.asList(
             "coat", "wardrobe"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.MARGARET_ROOM, Arrays.asList(
-            "letter", "dresser"
+            "lamp", "tape_recorder", "top_drawer", "bottom_drawer"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.GROUNDSKEEPER_SHED, Arrays.asList(
             "logbook", "shelf"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.SERVANTS_QUARTERS, Arrays.asList(
-            "bedpost", "floorboard"
+            "bedpost", "drawer"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.CELLAR, Arrays.asList(
             "flour_sacks", "wine_rack"
@@ -65,7 +65,7 @@ public class RoomDescriptions {
                 return "The kitchen. The smell of last night's dinner lingers.";
 
             case GUEST_ROOMS:
-                if (visitCount <= 1) return "The guest wing upstairs. Margaret's room is to the left, James's room to the right. Both doors are slightly ajar.";
+                if (visitCount <= 1) return "The guest wing upstairs. James's room is to the right, door slightly ajar. Margaret's room is to the left -- the door is cold to the touch and refuses to open.";
                 if (awareness >= 40) return "The guest wing. The doors to both rooms stand open, waiting.";
                 return "The guest wing. Margaret's and James's rooms are accessible from here.";
 
@@ -85,7 +85,7 @@ public class RoomDescriptions {
                 return "Daniel's shed. It smells of earth and oil.";
 
             case SERVANTS_QUARTERS:
-                if (visitCount <= 1) return "The staff area. Simple but clean. A narrow bed with a worn wooden bedpost. A loose floorboard near the wall catches your eye.";
+                if (visitCount <= 1) return "The staff area. Simple but clean. Bunk beds line the walls. A small nightstand sits between them, a blue pouch resting on top.";
                 if (awareness >= 60) return "The servants' quarters feel abandoned. The staff have been avoiding this area.";
                 return "The servants' quarters. Modest and orderly.";
 
@@ -113,18 +113,24 @@ public class RoomDescriptions {
             case "grandfather_clock": return "Grandfather Clock";
             case "briefcase": return "Briefcase";
             case "storage_cellar": return "Storage Cellar Door";
+            case "kitchen_floor": return "Under the Counter";
             case "flour_tin": return "Flour Tin";
             case "flour_sacks": return "Flour Sacks";
             case "margarets_room": return "Margaret's Room";
             case "james_room": return "James's Room";
-            case "letter": return "Letter on Dresser";
+            case "lamp": return "Bedside Lamp";
+            case "tape_recorder": return "Tape Recorder";
+            case "top_drawer": return "Top Drawer";
+            case "bottom_drawer": return "Bottom Drawer";
             case "coat": return "James's Coat";
             case "wardrobe": return "Wardrobe";
             case "dresser": return "Dresser";
             case "logbook": return "Groundskeeper's Logbook";
             case "shelf": return "Shelf";
+            case "kit": return "Tape Repair Kit";
+            case "shoes": return "Stained Shoes";
             case "bedpost": return "Wooden Bedpost";
-            case "floorboard": return "Loose Floorboard";
+            case "drawer": return "Nightstand";
             case "wine_rack": return "Wine Rack";
             default: return objectId;
         }

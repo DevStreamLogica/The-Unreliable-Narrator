@@ -91,14 +91,14 @@ public class DocumentReconstructionGame {
     public void startTornLetter(Runnable onComplete, Runnable onCancel) {
         this.documentTitle = "RECONSTRUCT THE TORN LETTER";
         this.fragmentTexts = new String[] {
-            "...cannot",
-            "allow this",
-            "betrayal...",
-            "the will",
-            "must...",
-            "James has..."
+            "...I have seen",
+            "what James",
+            "is doing...",
+            "before the will",
+            "is signed...",
+            "you must..."
         };
-        this.fullText = "\"...cannot allow this betrayal... the will must... James has...\"";
+        this.fullText = "\"...I have seen what James is doing... before the will is signed... you must...\"";
         this.onComplete = onComplete;
         this.onCancel = onCancel;
 
@@ -198,7 +198,9 @@ public class DocumentReconstructionGame {
     public void handleTouchDragged(float x, float y) {
         if (!active || completed || draggedPiece == null) return;
 
-        draggedPiece.setPosition(x - dragOffsetX, y - dragOffsetY);
+        float clampedX = Math.max(0, Math.min(DSAGame.SCREEN_WIDTH - PIECE_WIDTH, x - dragOffsetX));
+        float clampedY = Math.max(0, Math.min(DSAGame.SCREEN_HEIGHT - PIECE_HEIGHT, y - dragOffsetY));
+        draggedPiece.setPosition(clampedX, clampedY);
     }
 
     public void handleTouchUp(float x, float y) {

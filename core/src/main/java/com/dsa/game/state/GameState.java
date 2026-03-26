@@ -64,9 +64,26 @@ public class GameState {
     // Tape repair kit (Act 3 gate)
     private boolean hasTapeRepairKit = false;
 
+    // Margaret's room drawer state
+    private boolean margaretTopOpen = false;
+    private boolean margaretBotOpen = false;
+    private boolean margaretShoesExamined = false;
+
+    // Tape progression system (Option 2)
+    private final Set<Tape> unlockedTapes = new LinkedHashSet<>();
+    private final Set<String> learnedCodes = new LinkedHashSet<>();
+    private final Set<Tape> repairedTapes = new LinkedHashSet<>();
+    private int repairSolutionsRemaining = 0;
+
+    // Minigame score (0–200, stored after each minigame)
+    private int lastMinigameScore = 0;
+
     // Ending choice (Feature 6)
-    public enum Ending { NONE, ACCUSATION_CORRECT, ACCUSATION_WRONG, SEAL_THE_WALL, ESCAPE_MANOR, DESTROY_TAPES, GAME_OVER_AWARENESS }
+    public enum Ending { NONE, ACCUSATION_CORRECT, ACCUSATION_WRONG, SEAL_THE_WALL, ESCAPE_MANOR, DESTROY_TAPES, GAME_OVER_AWARENESS, LEAVE_MANOR }
     private Ending chosenEnding = Ending.NONE;
+
+    // Achievement tracking (persisted via SaveLoadSystem)
+    private final Set<Achievement> unlockedAchievements = new LinkedHashSet<>();
 
     public GameState() {
         // Initialize cooperation from starting values
@@ -79,6 +96,18 @@ public class GameState {
         }
         // Count initial room
         visitCounts.put(Room.RoomID.ENTRANCE, 1);
+    }
+
+    // Minigame score
+    public int getLastMinigameScore() { return lastMinigameScore; }
+    public void setLastMinigameScore(int score) { lastMinigameScore = Math.max(0, Math.min(200, score)); }
+
+    /** Returns "TRUTH SURFACED" / "MOSTLY CLEAR" / "DISTORTED" / "CORRUPTED" */
+    public String getMinigameScoreTier() {
+        if (lastMinigameScore >= 170) return "TRUTH SURFACED";
+        if (lastMinigameScore >= 120) return "MOSTLY CLEAR";
+        if (lastMinigameScore >=  70) return "DISTORTED";
+        return "CORRUPTED";
     }
 
     // Awareness
@@ -99,7 +128,7 @@ public class GameState {
     public boolean watchTape(Tape t) { return watchedTapes.add(t); }
 
     // Cooperation
-    public int getCooperation(Suspect s) { return cooperation.getOrDefault(s, 50); }
+    public int getCooperation(Suspect s) { return cooperation.getOrDefault(s, s.getStartingCooperation()); }
     public void adjustCooperation(Suspect s, int delta) {
         int current = getCooperation(s);
         cooperation.put(s, Math.max(0, Math.min(100, current + delta)));
@@ -183,6 +212,37 @@ public class GameState {
     public boolean hasTapeRepairKit() { return hasTapeRepairKit; }
     public void setHasTapeRepairKit(boolean value) { hasTapeRepairKit = value; }
 
+    // Margaret's room drawer state
+    public boolean isMargaretTopOpen() { return margaretTopOpen; }
+    public void setMargaretTopOpen(boolean value) { margaretTopOpen = value; }
+    public boolean isMargaretBotOpen() { return margaretBotOpen; }
+    public void setMargaretBotOpen(boolean value) { margaretBotOpen = value; }
+    public boolean isMargaretShoesExamined() { return margaretShoesExamined; }
+    public void setMargaretShoesExamined(boolean value) { margaretShoesExamined = value; }
+
+    // Tape progression system
+    public boolean unlockTape(Tape t) { return unlockedTapes.add(t); }
+    public boolean isUnlockedTape(Tape t) { return t == Tape.TAPE_ARGUMENT || unlockedTapes.contains(t); }
+    public void learnCode(String code) { learnedCodes.add(code); }
+    public boolean hasLearnedCode(String code) { return learnedCodes.contains(code); }
+    public void addRepairSolution() { repairSolutionsRemaining++; }
+    public boolean useRepairSolution(Tape t) {
+        if (repairSolutionsRemaining <= 0) return false;
+        repairSolutionsRemaining--;
+        repairedTapes.add(t);
+        return true;
+    }
+    public boolean isTapeRepaired(Tape t) { return repairedTapes.contains(t); }
+    public int getRepairSolutionsRemaining() { return repairSolutionsRemaining; }
+    public Set<Tape> getUnlockedTapes() { return Collections.unmodifiableSet(unlockedTapes); }
+    public Set<String> getLearnedCodes() { return Collections.unmodifiableSet(learnedCodes); }
+    public Set<Tape> getRepairedTapes() { return Collections.unmodifiableSet(repairedTapes); }
+    // Force-setters for SaveLoadSystem
+    public void forceUnlockTape(Tape t) { unlockedTapes.add(t); }
+    public void forceLearnCode(String c) { learnedCodes.add(c); }
+    public void forceRepairTape(Tape t) { repairedTapes.add(t); }
+    public void setRepairSolutionsRemaining(int n) { repairSolutionsRemaining = n; }
+
     // Ending
     public Ending getChosenEnding() { return chosenEnding; }
     public void setChosenEnding(Ending ending) { this.chosenEnding = ending; }
@@ -224,13 +284,22 @@ public class GameState {
         narratorDistortions.clear();
         wrongAccusationCount = 0;
         hasTapeRepairKit = false;
+        margaretTopOpen = false;
+        margaretBotOpen = false;
+        margaretShoesExamined = false;
         chosenEnding = Ending.NONE;
+        unlockedTapes.clear();
+        learnedCodes.clear();
+        repairedTapes.clear();
+        repairSolutionsRemaining = 0;
         for (Suspect s : Suspect.values()) {
             cooperation.put(s, s.getStartingCooperation());
         }
         for (Room.RoomID id : Room.RoomID.values()) {
             visitCounts.put(id, 0);
         }
+        visitCounts.put(Room.RoomID.ENTRANCE, 1);
+        unlockedAchievements.clear();
     }
 
     // Force-setters for save/load deserialization
@@ -249,5 +318,16 @@ public class GameState {
     public void forceAddReceivedLie(String lieKey) { receivedLies.add(lieKey); }
     public void forceAddNarratorDistortion(String distortion) { narratorDistortions.add(distortion); }
     public void setWrongAccusationCount(int count) { wrongAccusationCount = count; }
-    public void setChosenEndingByName(String name) { chosenEnding = Ending.valueOf(name); }
+    public void setChosenEndingByName(String name) {
+        try {
+            chosenEnding = Ending.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            chosenEnding = Ending.NONE;
+        }
+    }
+
+    // Achievement tracking
+    public Set<Achievement> getUnlockedAchievements() { return Collections.unmodifiableSet(unlockedAchievements); }
+    public void unlockAchievement(Achievement a) { unlockedAchievements.add(a); }
+    public void forceUnlockAchievement(Achievement a) { unlockedAchievements.add(a); }
 }

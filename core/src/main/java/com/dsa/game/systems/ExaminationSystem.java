@@ -86,7 +86,9 @@ public class ExaminationSystem {
                 if (count == 1) return new ExamResult(
                     "Sifting through the ashes carefully, you find fragments of a burned letter. The pieces are scattered but might be reconstructed...",
                     ExamResult.MiniGameType.TORN_LETTER_RECONSTRUCTION);
-                return new ExamResult("You've already sifted through the ashes and found the torn letter fragments.");
+                if (count == 2) return ExamResult.withRepairSolution(
+                    "Sifting deeper through the ashes beneath where the letter fragments were, your fingers close on something solid -- a small roll of splicing tape and a metal splicer, heat-blackened but intact. Investigation tools, hidden in the one place no one would search twice.\n\n[Tape repair solution acquired.]");
+                return new ExamResult("The fireplace ashes. You've found everything hidden here.");
 
             case "under_desk":
                 if (count == 1) return new ExamResult(
@@ -103,7 +105,7 @@ public class ExaminationSystem {
         switch (object) {
             case "grandfather_clock":
                 if (count == 1) return new ExamResult(
-                    "An ornate grandfather clock. The pendulum swings steadily. Opening the clock case to adjust the time, you discover a tape recorder hidden behind the mechanism.",
+                    "An ornate grandfather clock. The pendulum swings steadily. Opening the clock case to examine the mechanism, you discover a tape recorder hidden behind the pendulum assembly.",
                     Tape.TAPE_CHARLES_INTERVIEW);
                 return new ExamResult("The grandfather clock ticks on. You already found the tape inside.");
 
@@ -125,19 +127,18 @@ public class ExaminationSystem {
     private ExamResult examineKitchen(String object, int count) {
         switch (object) {
             case "storage_cellar":
-                if (count == 1) return new ExamResult(
-                    "The narrow door to the cellar storage. Beside it, a shelf holds tea supplies. Reaching behind a canister, you find a small glass vial. The label reads 'Chloral Hydrate' -- a powerful sleeping powder. Behind another canister, a tape recorder sits wedged between jars.",
-                    Evidence.SLEEPING_POWDER, Tape.TAPE_MARGARET_INTERVIEW);
-                if (count == 2) {
-                    state.discoverAnomaly(EntityAnomaly.COLD_SPOT_CELLAR);
-                    return new ExamResult("You examine the cellar door again. The metal handle is ice-cold to the touch, far colder than it should be. A distinct chill emanates from below -- from the cellar itself. Your breath mists briefly.\n\n[ANOMALY DISCOVERED: Cold Spot]");
-                }
-                return new ExamResult("The cellar door. The handle remains unnaturally cold. You already found the sleeping powder on the nearby shelf.");
+                return new ExamResult("The narrow door leading down to the cellar storage.");
 
             case "flour_tin":
+                if (count == 1) return ExamResult.withRepairSolution(
+                    "A battered flour tin on the kitchen shelf. Lifting the lid: beneath a false bottom, wrapped in cloth, more splicing equipment. Someone hid investigation tools throughout the manor.\n\n[Tape repair solution acquired.]");
+                return new ExamResult("The flour tin. You already retrieved the tape repair equipment from inside.");
+
+            case "kitchen_floor":
                 if (count == 1) return new ExamResult(
-                    "A large flour tin on the shelf. You check inside but find only flour. It's been used recently -- fingerprints in the dust.");
-                return new ExamResult("The flour tin. Just flour inside.");
+                    "A tape recorder, sitting in the middle of the kitchen floor. No attempt to hide it. The reel is hand-labeled in careful block letters -- someone wanted this found, or wanted it close. Margaret spent more time in this kitchen than anywhere else in the manor.\n\nThe narrator's voice comes through tightly: \"I remember her in here. Late. After the others had gone to bed. She was listening to something -- replaying it. Over and over.\"",
+                    Tape.TAPE_MARGARET_INTERVIEW);
+                return new ExamResult("The kitchen floor where the tape recorder was. You've already taken it.");
 
             default:
                 return new ExamResult("Nothing noteworthy here.");
@@ -165,24 +166,22 @@ public class ExaminationSystem {
 
     private ExamResult examineMargaretRoom(String object, int count) {
         switch (object) {
-            case "letter":
+            case "lamp":
                 if (count == 1) return new ExamResult(
-                    "On Margaret's dresser, a folded note. Opening it: 'I know what you did. Pay what you owe, or I tell everything. You know where to leave the money.' No signature. The handwriting is rough, uneducated -- not Margaret's elegant script. This note wasn't written TO her. Someone planted it here.",
+                    "A bedside lamp on the nightstand. Lifting the base to examine it, a folded note falls out -- tucked underneath. Opening it: 'I know what you did. Pay what you owe, or I tell everything. You know where to leave the money.' No signature. The handwriting is rough, uneducated -- not Margaret's elegant script. This note wasn't written BY her. Someone hid it here to frame her.",
                     Evidence.BLACKMAIL_NOTE);
-                return new ExamResult("The dresser where you found the blackmail note.");
+                return new ExamResult("The lamp. The blackmail note was hidden underneath it.");
+
+            case "tape_recorder":
+                if (count == 1) return new ExamResult(
+                    "A tape recorder on the nightstand with a handwritten label: 'For the detective.' The ribbon inside has been deliberately cut -- someone found this before you did and didn't want it heard.",
+                    Tape.TAPE_MARGARET_ACCOUNT);
+                return new ExamResult("The tape recorder. You've already collected it.");
+
 
             case "dresser":
-                if (count == 1) {
-                    state.setHasTapeRepairKit(true);
-                    return new ExamResult(
-                        "Margaret's dresser. On the nightstand beside it, a tape recorder with a handwritten label: 'For the detective.'\n\n" +
-                        "Beside the recorder, a small leather case holds tape splicing tools -- scissors, adhesive strips, " +
-                        "a manual splicer. Margaret clearly prepared these recordings carefully.\n\n" +
-                        "[Tape repair kit acquired. You can now repair damaged tapes.]",
-                        Tape.TAPE_MARGARET_ACCOUNT);
-                }
-                if (count == 2) return new ExamResult("Looking more carefully at the dresser area, you notice a pair of shoes near the door with dark reddish-brown stains. A half-empty bottle of port wine sits on top. The stains on the shoes... could they be wine spills? Or something worse?");
-                return new ExamResult("Margaret's dresser. The half-packed suitcase, the stained shoes, and the wine bottle paint an ambiguous picture.");
+                if (count == 1) return new ExamResult("Margaret's dresser against the wall. A half-packed suitcase sits on top -- clothes folded neatly, but only halfway full. She was planning to leave.");
+                return new ExamResult("Margaret's dresser. The half-packed suitcase, undisturbed.");
 
             default:
                 return new ExamResult("Nothing noteworthy here.");
@@ -193,7 +192,7 @@ public class ExaminationSystem {
         switch (object) {
             case "logbook":
                 if (count == 1) return new ExamResult(
-                    "Daniel's logbook records daily activities. Each day is meticulously noted -- except the night of the murder. That page has been torn out. A tape recorder is wedged between the pages.",
+                    "Daniel's logbook records daily activities. Each day is meticulously noted -- except the night of the murder. That page has been torn out. A tape recorder is wedged between the pages. The casing is cracked and the ribbon has been pulled loose -- someone tried to destroy this recording. It will need splicing before it can play.",
                     Evidence.GROUNDSKEEPER_LOG, Tape.TAPE_DANIEL_INTERVIEW);
                 return new ExamResult("The logbook. The torn-out page is still missing.");
 
@@ -219,9 +218,10 @@ public class ExaminationSystem {
                 }
                 return new ExamResult("The worn bedpost. The 'A.H.' initials carved into the wood.");
 
-            case "floorboard":
-                if (count == 1) return new ExamResult("A loose floorboard near the wall. Prying it up, you find nothing but dust and old nails. But the hiding spot has been used before -- scratch marks show something was stored here recently and removed.");
-                return new ExamResult("The empty space under the floorboard. Whatever was hidden here is gone now.");
+            case "drawer":
+                if (count == 1) return ExamResult.withRepairSolution(
+                    "A small wooden nightstand between the beds. On top, a blue canvas pouch -- tape splicing scissors, adhesive strips, and a manual splicer. Someone left this here deliberately.\n\n[Tape repair solution acquired.]");
+                return new ExamResult("The nightstand. Arthur's blue investigation pouch is already in your possession.");
 
             default:
                 return new ExamResult("Nothing noteworthy here.");
@@ -230,11 +230,23 @@ public class ExaminationSystem {
 
     private ExamResult examineCellar(String object, int count) {
         switch (object) {
+            case "cellar_shelf":
+                if (count == 1) return new ExamResult(
+                    "A row of old shelves along the cellar wall. Dusty jars, rusted tins. Behind a cluster of canisters, a small glass vial -- the label reads 'Chloral Hydrate'. A powerful sleeping powder.",
+                    Evidence.SLEEPING_POWDER);
+                if (count == 2) {
+                    state.discoverAnomaly(EntityAnomaly.COLD_SPOT_CELLAR);
+                    return new ExamResult("You run your hand along the cellar wall near the shelf. The stone is ice-cold here -- far colder than the rest of the cellar. Your breath mists. The cold seems to be coming from deeper in the wall.\n\n[ANOMALY DISCOVERED: Cold Spot]");
+                }
+                return new ExamResult("The cellar shelf. You've found everything it had to offer.");
+
             case "flour_sacks":
                 if (count == 1) return new ExamResult(
-                    "Flour sacks stacked against the wall. The floor around them has been recently disturbed -- drag marks in the dust. Reaching behind the sacks, your hand closes on bundled fabric. A shirt, hastily hidden. The right cuff is stained dark with blood. Why hide it instead of burning it? The study fireplace was nearly dead by midnight -- James must have panicked.",
+                    "Flour sacks stacked against the wall. The floor around them has been recently disturbed -- drag marks in the dust. Reaching behind the sacks, your hand closes on bundled fabric. A shirt, hastily hidden. The right cuff is stained dark with blood. Why hide it instead of burning it? The cellar was dark, fast to reach from the study, and easily locked from the inside. Whoever hid this was thinking quickly.",
                     Evidence.BLOODSTAINED_CUFF);
-                return new ExamResult("The flour sacks. You already found the bloodstained shirt hidden behind them.");
+                if (count == 2) return ExamResult.withRepairSolution(
+                    "Moving the flour sacks fully aside, behind where the shirt was hidden: a small leather roll of tape splicing tools. Arthur made it this far into the cellar. He prepared for what he might find.\n\n[Tape repair solution acquired.]");
+                return new ExamResult("The flour sacks. You've searched behind them thoroughly.");
 
             case "wine_rack":
                 if (count == 1) return new ExamResult(

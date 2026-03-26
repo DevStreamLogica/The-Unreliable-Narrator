@@ -7,6 +7,9 @@ import com.dsa.game.DSAGame;
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return;
+        for (String arg : args) {
+            if ("--escape".equals(arg)) { DSAGame.startInEscapeMode = true; break; }
+        }
         createApplication();
     }
 

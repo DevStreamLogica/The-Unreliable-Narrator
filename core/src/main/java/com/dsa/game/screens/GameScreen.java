@@ -42,8 +42,27 @@ public class GameScreen implements Screen {
     private RoomManager roomManager;
 
     private Map<Room.RoomID, Texture> roomTextures;
+    private Texture kitchenWithoutTapeTex;
+    private Texture jamesClosedTex;
+    private Texture shedTapeBoots;
+    private Texture shedTapeNoBoots;
+    private Texture shedNoTapeBoots;
+    private Texture shedNoTapeNoBoots;
+    // Margaret's room: 12 state textures
+    private Texture mTapeTopClosedBotClosed;
+    private Texture mTapeTopClosedBotOpenShoes;
+    private Texture mTapeTopClosedBotOpenNoShoes;
+    private Texture mTapeTopOpenKit;
+    private Texture mTapeTopOpenNoKit;
+    private Texture mTapeTopOpenNoKitBotOpen;
+    private Texture mNoTapeTopClosedBotClosed;
+    private Texture mNoTapeTopClosedBotOpenShoes;
+    private Texture mNoTapeTopClosedBotOpenNoShoes;
+    private Texture mNoTapeTopOpenKit;
+    private Texture mNoTapeTopOpenNoKit;
+    private Texture mNoTapeTopOpenNoKitBotOpen;
     private Texture pixelTexture;
-
+    private Texture backButtonTexture;
 
     private String currentTooltip = "";
     private GlyphLayout layout;
@@ -73,14 +92,36 @@ public class GameScreen implements Screen {
     private DocumentReconstructionGame documentGame;
 
     // Panel mode tracking
-    private enum PanelMode { NONE, TEXT, INVENTORY, SUSPECTS, SUSPECT_LIST, INTERVIEW, TAPE_PLAY, SHOW_EVIDENCE, ACCUSE_SELECT, NOTEBOOK, SAVE_MENU, LOAD_MENU, PAUSE, HISTORY, OBJECTIVES, SETTINGS }
+    private enum PanelMode {
+        NONE, TEXT, INVENTORY, SUSPECTS, SUSPECT_LIST, INTERVIEW, TAPE_PLAY, SHOW_EVIDENCE, ACCUSE_SELECT, NOTEBOOK,
+        SAVE_MENU, LOAD_MENU, PAUSE, HISTORY, OBJECTIVES, SETTINGS
+    }
+
     private PanelMode panelMode = PanelMode.NONE;
 
     // Climax state
     private boolean pendingClimax = false;
 
+    // Set to true by loadFromSave() so show() skips the opening sequence
+    private boolean isLoadedGame = false;
+
+    // Set to true before launching a minigame so show() skips the opening sequence on return
+    private boolean returningFromMinigame = false;
+    private float minigameReturnCooldown = 0f;
+    private static final float MINIGAME_RETURN_COOLDOWN = 0.5f;
+
     // Mini-game state
     private ExamResult.MiniGameType pendingMiniGame = null;
+
+    // Catcher minigame — tape that should launch it after the text panel is dismissed
+    private Tape pendingCatcherTape = null;
+    private boolean catcherIntroShown = false;
+    private final java.util.Set<Tape> catcherPlayedTapes = new java.util.HashSet<>();
+
+    // Maze minigame — tapes 4-6
+    private Tape pendingMazeTape = null;
+    private boolean mazeIntroShown = false;
+    private final java.util.Set<Tape> mazePlayedTapes = new java.util.HashSet<>();
 
     public GameScreen(DSAGame game) {
         this.game = game;
@@ -127,14 +168,62 @@ public class GameScreen implements Screen {
         roomTextures = new HashMap<>();
 
         for (Room.RoomID roomId : Room.RoomID.values()) {
-            String imagePath = "rooms/" + roomId.name().toLowerCase() + ".png";
-            if (Gdx.files.internal(imagePath).exists()) {
-                roomTextures.put(roomId, new Texture(Gdx.files.internal(imagePath)));
+            String baseName = "rooms/" + roomId.name().toLowerCase();
+            String pngPath = baseName + ".png";
+            String jpgPath = baseName + ".jpg";
+            if (Gdx.files.internal(pngPath).exists()) {
+                roomTextures.put(roomId, new Texture(Gdx.files.internal(pngPath)));
+            } else if (Gdx.files.internal(jpgPath).exists()) {
+                roomTextures.put(roomId, new Texture(Gdx.files.internal(jpgPath)));
             } else {
                 roomTextures.put(roomId, PlaceholderGenerator.generateRoomPlaceholder(
-                    roomId, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT));
+                        roomId, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT));
             }
         }
+        if (Gdx.files.internal("rooms/kitchen without.png").exists()) {
+            kitchenWithoutTapeTex = new Texture(Gdx.files.internal("rooms/kitchen without.png"));
+        }
+        mTapeTopClosedBotClosed = loadMargaretTex("Tape, Top Closed, Bottom Closed.png");
+        mTapeTopClosedBotOpenShoes = loadMargaretTex("Tape, Top Closed, Bottom Open with Shoes.png");
+        mTapeTopClosedBotOpenNoShoes = loadMargaretTex("Tape, Top Closed, Bottom Open no Shoes.png");
+        mTapeTopOpenKit = loadMargaretTex("Tape, Top Open with Kit, Bottom Closed.png");
+        mTapeTopOpenNoKit = loadMargaretTex("Tape, Top Open no Kit, Bottom Closed.png");
+        mTapeTopOpenNoKitBotOpen = loadMargaretTex("Tape, Top Open no Kit, Bottom Open no Shoes.jpg");
+        mNoTapeTopClosedBotClosed = loadMargaretTex("No Tape, Top Closed, Bottom Closed.png");
+        mNoTapeTopClosedBotOpenShoes = loadMargaretTex("No Tape, Top Closed, Bottom Open with Shoes.png");
+        mNoTapeTopClosedBotOpenNoShoes = loadMargaretTex("No Tape, Top Closed, Bottom Open no Shoes.png");
+        mNoTapeTopOpenKit = loadMargaretTex("No Tape, Top Open with Kit, Bottom Closed.png");
+        mNoTapeTopOpenNoKit = loadMargaretTex("No Tape, Top Open no Kit, Bottom Closed.png");
+        mNoTapeTopOpenNoKitBotOpen = loadMargaretTex("No Tape, Top Open no Kit, Bottom Open no Shoes.jpg");
+        if (mTapeTopClosedBotClosed != null) {
+            roomTextures.put(Room.RoomID.MARGARET_ROOM, mTapeTopClosedBotClosed);
+        } else if (Gdx.files.internal("rooms/margarette room.png").exists()) {
+            roomTextures.put(Room.RoomID.MARGARET_ROOM, new Texture(Gdx.files.internal("rooms/margarette room.png")));
+        }
+        if (Gdx.files.internal("rooms/james closed.jpeg").exists()) {
+            jamesClosedTex = new Texture(Gdx.files.internal("rooms/james closed.jpeg"));
+        }
+        shedTapeBoots   = loadTex("rooms/Shed_with_tape_with_boots.jpg");
+        shedTapeNoBoots = loadTex("rooms/Shed_with_tape_without_boots.jpg");
+        shedNoTapeBoots = loadTex("rooms/shed_without_tape_with_boots.jpg");
+        shedNoTapeNoBoots = loadTex("rooms/Shed_without_tape_without_boots.jpg");
+        if (shedTapeBoots != null) roomTextures.put(Room.RoomID.GROUNDSKEEPER_SHED, shedTapeBoots);
+        if (Gdx.files.internal("rooms/cellar.png").exists()) {
+            roomTextures.put(Room.RoomID.CELLAR, new Texture(Gdx.files.internal("rooms/cellar.png")));
+        }
+    }
+
+    private Texture loadMargaretTex(String filename) {
+        String path = "rooms/margaret/" + filename;
+        if (Gdx.files.internal(path).exists()) {
+            return new Texture(Gdx.files.internal(path));
+        }
+        return null;
+    }
+
+    private Texture loadTex(String path) {
+        if (Gdx.files.internal(path).exists()) return new Texture(Gdx.files.internal(path));
+        return null;
     }
 
     private void generateUITextures() {
@@ -143,12 +232,15 @@ public class GameScreen implements Screen {
         p.fill();
         pixelTexture = new Texture(p);
         p.dispose();
+        backButtonTexture = new Texture(Gdx.files.internal("back.png"));
     }
 
     private void setupInput() {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+                if (minigameReturnCooldown > 0f) return true;
+
                 touchPos.set(screenX, screenY);
                 viewport.unproject(touchPos);
                 float gameX = touchPos.x;
@@ -164,7 +256,8 @@ public class GameScreen implements Screen {
                     return true;
                 }
 
-                if (gameState.isGameOver() || gameState.isGameWon()) return true;
+                if (gameState.isGameOver() || gameState.isGameWon())
+                    return true;
 
                 // Document reconstruction mini-game gets top priority
                 if (documentGame.isActive()) {
@@ -247,19 +340,8 @@ public class GameScreen implements Screen {
                 actionBar.handleHover(gameX, gameY);
                 awarenessMeter.handleHover(gameY);
 
-                boolean overHotspot = false;
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
                     hotspot.checkHover(gameX, gameY);
-                    if (hotspot.isHovered()) {
-                        currentTooltip = hotspot.getTooltip();
-                        overHotspot = true;
-                    }
-                }
-
-                if (overHotspot) {
-                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Hand);
-                } else {
-                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
                 }
                 return false;
             }
@@ -287,6 +369,7 @@ public class GameScreen implements Screen {
                     if (textPanel.isVisible()) {
                         textPanel.hide();
                         panelMode = PanelMode.NONE;
+                        pendingMiniGame = null;
                     } else {
                         showPauseMenu();
                     }
@@ -294,31 +377,55 @@ public class GameScreen implements Screen {
                 }
 
                 // Don't allow navigation while panel is open
-                if (textPanel.isVisible()) return true;
+                if (textPanel.isVisible())
+                    return true;
 
                 switch (keycode) {
-                    case Input.Keys.W: case Input.Keys.UP:
-                        navigateByDirection(Direction.NORTH); break;
-                    case Input.Keys.S: case Input.Keys.DOWN:
-                        navigateByDirection(Direction.SOUTH); break;
-                    case Input.Keys.A: case Input.Keys.LEFT:
-                        navigateByDirection(Direction.WEST); break;
-                    case Input.Keys.D: case Input.Keys.RIGHT:
-                        navigateByDirection(Direction.EAST); break;
+                    case Input.Keys.W:
+                    case Input.Keys.UP:
+                        navigateByDirection(Direction.NORTH);
+                        break;
+                    case Input.Keys.S:
+                    case Input.Keys.DOWN:
+                        navigateByDirection(Direction.SOUTH);
+                        break;
+                    case Input.Keys.A:
+                    case Input.Keys.LEFT:
+                        navigateByDirection(Direction.WEST);
+                        break;
+                    case Input.Keys.D:
+                    case Input.Keys.RIGHT:
+                        navigateByDirection(Direction.EAST);
+                        break;
+                    case Input.Keys.F11: // DEBUG: launch Catcher minigame directly
+                        returningFromMinigame = true;
+                        game.setScreen(new CatcherMinigame(game, gameState, Tape.TAPE_ARGUMENT, () -> game.setScreen(GameScreen.this)));
+                        break;
+                    case Input.Keys.F12: // DEBUG: launch Maze minigame directly
+                        returningFromMinigame = true;
+                        game.setScreen(new MazeMinigame(game, gameState, Tape.TAPE_MARGARET_INTERVIEW, () -> game.setScreen(GameScreen.this)));
+                        break;
                     case Input.Keys.I:
-                        handleActionBarClick("inventory"); break;
+                        handleActionBarClick("inventory");
+                        break;
                     case Input.Keys.N:
-                        handleActionBarClick("notebook"); break;
+                        handleActionBarClick("notebook");
+                        break;
                     case Input.Keys.T:
-                        handleActionBarClick("suspects"); break;
+                        handleActionBarClick("suspects");
+                        break;
                     case Input.Keys.H:
-                        showHistory(); break;
+                        showHistory();
+                        break;
                     case Input.Keys.O:
-                        showObjectives(); break;
+                        showObjectives();
+                        break;
                     case Input.Keys.F5:
-                        showSaveMenu(); break;
+                        showSaveMenu();
+                        break;
                     case Input.Keys.F9:
-                        showLoadMenu(); break;
+                        showLoadMenu();
+                        break;
                 }
                 return true;
             }
@@ -354,15 +461,23 @@ public class GameScreen implements Screen {
             NarratorText.Mood mood = NarratorText.getMoodForAwareness(gameState.getAwareness());
             String narratorLine;
             switch (mood) {
-                case HOPEFUL: narratorLine = "\"I wouldn't bother, detective. Nothing down there but dust and old wine. Focus on the rooms up here.\""; break;
-                case CONFUSED: narratorLine = "\"That door... it won't open. Strange. I don't remember it being locked. Perhaps try the other rooms first?\""; break;
-                case ANXIOUS: narratorLine = "\"Don't go down there. Please. Something about the cellar makes my skin crawl. There's nothing for your investigation below.\""; break;
-                default: narratorLine = "\"NO! Stay AWAY from the cellar! You don't understand what's down there! I mean... it's irrelevant. Completely irrelevant.\""; break;
+                case HOPEFUL:
+                    narratorLine = "\"I wouldn't bother, detective. Nothing down there but dust and old wine. Focus on the rooms up here.\"";
+                    break;
+                case CONFUSED:
+                    narratorLine = "\"That door... it won't open. Strange. I don't remember it being locked. Perhaps try the other rooms first?\"";
+                    break;
+                case ANXIOUS:
+                    narratorLine = "\"Don't go down there. Please. Something about the cellar makes my skin crawl. There's nothing for your investigation below.\"";
+                    break;
+                default:
+                    narratorLine = "\"NO! Stay AWAY from the cellar! You don't understand what's down there! I mean... it's irrelevant. Completely irrelevant.\"";
+                    break;
             }
             textPanel.show("THE CELLAR\n\nThe door to the cellar won't budge. The handle is ice-cold " +
-                "to the touch, far colder than it should be. Something below is keeping this door sealed.\n\n" +
-                narratorLine + "\n\n" +
-                "[Continue investigating. Gather more evidence and testimony.]");
+                    "to the touch, far colder than it should be. Something below is keeping this door sealed.\n\n" +
+                    narratorLine + "\n\n" +
+                    "[Continue investigating. Gather more evidence and testimony.]");
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -370,15 +485,23 @@ public class GameScreen implements Screen {
             NarratorText.Mood mood = NarratorText.getMoodForAwareness(gameState.getAwareness());
             String narratorLine;
             switch (mood) {
-                case HOPEFUL: narratorLine = "\"Margaret's room? She's a witness, not a suspect. Her room won't tell you anything useful.\""; break;
-                case CONFUSED: narratorLine = "\"The door won't budge. That's odd. It was open earlier, wasn't it? Perhaps Margaret locked it.\""; break;
-                case ANXIOUS: narratorLine = "\"Something is holding that door shut. Not a lock -- something else. Please, detective, leave it alone.\""; break;
-                default: narratorLine = "\"THE DOOR IS SEALED! Can't you feel the cold? Whatever is behind that door, they don't -- I mean, there's no reason to go in there!\""; break;
+                case HOPEFUL:
+                    narratorLine = "\"Margaret's room? She's a witness, not a suspect. Her room won't tell you anything useful.\"";
+                    break;
+                case CONFUSED:
+                    narratorLine = "\"The door won't budge. That's odd. It was open earlier, wasn't it? Perhaps Margaret locked it.\"";
+                    break;
+                case ANXIOUS:
+                    narratorLine = "\"Something is holding that door shut. Not a lock -- something else. Please, detective, leave it alone.\"";
+                    break;
+                default:
+                    narratorLine = "\"THE DOOR IS SEALED! Can't you feel the cold? Whatever is behind that door, they don't -- I mean, there's no reason to go in there!\"";
+                    break;
             }
             textPanel.show("MARGARET'S ROOM\n\nThe door is sealed shut. Not locked -- sealed. " +
-                "The wood is unnaturally cold. Frost traces the edges of the frame despite the warm hallway.\n\n" +
-                narratorLine + "\n\n" +
-                "[The Entity's grip may weaken if you investigate deeper into the manor.]");
+                    "The wood is unnaturally cold. Frost traces the edges of the frame despite the warm hallway.\n\n" +
+                    narratorLine + "\n\n" +
+                    "[Something holds this door shut. Perhaps deeper investigation will change that.]");
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -421,10 +544,52 @@ public class GameScreen implements Screen {
     // --- Examine ---
 
     private void handleExamine(String objectName) {
+        // storage_cellar is a door — always navigate to the cellar
+        if ("storage_cellar".equals(objectName)) {
+            handleNavigation(Room.RoomID.CELLAR);
+            return;
+        }
+        // Tape already collected — silently ignore, no awareness cost
+        if ("kitchen_floor".equals(objectName) && gameState.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) {
+            return;
+        }
+
         Room.RoomID currentRoomId = roomManager.getCurrentRoom().getId();
+
+        // Margaret's room drawer/kit/shoes — handled by state machine, not
+        // ExaminationSystem
+        if (currentRoomId == Room.RoomID.MARGARET_ROOM) {
+            String drawerResult = handleMargaretDrawer(objectName);
+            if (drawerResult != null) {
+                gameState.incrementCommandCount();
+                gameState.addEvent("Examined " + RoomDescriptions.getObjectDisplayName(objectName) + " in "
+                        + roomManager.getCurrentRoom().getName());
+                if (!drawerResult.isEmpty()) {
+                    String warning = null;
+                    if ("kit".equals(objectName) || "shoes".equals(objectName)) {
+                        warning = awarenessSystem.addAwareness(1);
+                        if (gameState.isGameOver()) {
+                            showGameOver();
+                            return;
+                        }
+                    }
+                    StringBuilder display = new StringBuilder();
+                    display.append("Examining: ").append(RoomDescriptions.getObjectDisplayName(objectName))
+                            .append("\n\n");
+                    display.append(drawerResult);
+                    if (warning != null)
+                        display.append("\n\n--- ").append(narratorSystem.getWarning());
+                    textPanel.show(display.toString());
+                    panelMode = PanelMode.TEXT;
+                }
+                return;
+            }
+        }
+
         ExamResult result = examinationSystem.examine(currentRoomId, objectName);
         gameState.incrementCommandCount();
-        gameState.addEvent("Examined " + RoomDescriptions.getObjectDisplayName(objectName) + " in " + roomManager.getCurrentRoom().getName());
+        gameState.addEvent("Examined " + RoomDescriptions.getObjectDisplayName(objectName) + " in "
+                + roomManager.getCurrentRoom().getName());
 
         // +1 awareness per examination
         String warning = awarenessSystem.addAwareness(1);
@@ -450,6 +615,13 @@ public class GameScreen implements Screen {
             if (isNew) {
                 display.append("\n\n[EVIDENCE FOUND: ").append(result.getEvidence().getDisplayName()).append("]");
                 gameState.addEvent("Found evidence: " + result.getEvidence().getDisplayName());
+                String codeAnnouncement = checkEvidenceForCode(result.getEvidence());
+                if (codeAnnouncement != null) {
+                    display.append(codeAnnouncement);
+                }
+                if (result.getEvidence() == Evidence.MUDDY_BOOTS) {
+                    removeHotspot(Room.RoomID.GROUNDSKEEPER_SHED, "shelf");
+                }
             }
         }
         if (result.hasTape()) {
@@ -457,7 +629,30 @@ public class GameScreen implements Screen {
             if (isNew) {
                 display.append("\n\n[TAPE FOUND: ").append(result.getTape().getTitle()).append("]");
                 gameState.addEvent("Found tape: " + result.getTape().getTitle());
+                if (result.getTape() == Tape.TAPE_MARGARET_INTERVIEW) {
+                    removeHotspot(Room.RoomID.KITCHEN, "kitchen_floor");
+                }
+                if (result.getTape() == Tape.TAPE_MARGARET_ACCOUNT) {
+                    removeHotspot(Room.RoomID.MARGARET_ROOM, "tape_recorder");
+                }
+                if (result.getTape() == Tape.TAPE_DANIEL_INTERVIEW) {
+                    removeHotspot(Room.RoomID.GROUNDSKEEPER_SHED, "logbook");
+                }
             }
+        }
+        // Wardrobe opened — swap hotspots in James's room
+        if ("wardrobe".equals(objectName)
+                && currentRoomId == Room.RoomID.JAMES_ROOM
+                && gameState.getExamCount(Room.RoomID.JAMES_ROOM, "wardrobe") == 1) {
+            removeHotspot(Room.RoomID.JAMES_ROOM, "wardrobe");
+            roomManager.getRoom(Room.RoomID.JAMES_ROOM)
+                    .addHotspot(new Hotspot("coat", "Examine: James's Coat", 879, 314, 53, 178));
+        }
+
+        if (result.grantsRepairSolution()) {
+            gameState.addRepairSolution();
+            display.append("\n\n[TAPE REPAIR SOLUTION ACQUIRED: ").append(gameState.getRepairSolutionsRemaining())
+                    .append(" total]");
         }
 
         if (warning != null) {
@@ -472,7 +667,8 @@ public class GameScreen implements Screen {
         switch (result.getMiniGame()) {
             case TORN_LETTER_RECONSTRUCTION:
                 // Show intro text first, then start mini-game
-                textPanel.show(narratorSystem.filterText(result.getText()) + "\n\n[Reconstruct the document to reveal its contents...]");
+                textPanel.show(narratorSystem.filterText(result.getText())
+                        + "\n\n[Reconstruct the document to reveal its contents...]");
                 panelMode = PanelMode.TEXT;
 
                 // Start the mini-game after the text panel is closed
@@ -485,26 +681,28 @@ public class GameScreen implements Screen {
     }
 
     private void startPendingMiniGame() {
-        if (pendingMiniGame == null) return;
+        if (pendingMiniGame == null)
+            return;
 
         switch (pendingMiniGame) {
             case TORN_LETTER_RECONSTRUCTION:
                 documentGame.startTornLetter(
-                    // On complete: collect evidence
-                    () -> {
-                        boolean isNew = evidenceSystem.collect(Evidence.TORN_LETTER);
-                        if (isNew) {
-                            gameState.addEvent("Found evidence: " + Evidence.TORN_LETTER.getDisplayName());
-                        }
-                        textPanel.show("Document reconstructed!\n\n\"...cannot allow this betrayal... the will must... James has...\"\n\nThe rest is destroyed, but this fragment speaks of treachery and the will.\n\n[EVIDENCE FOUND: " + Evidence.TORN_LETTER.getDisplayName() + "]");
-                        panelMode = PanelMode.TEXT;
-                    },
-                    // On cancel: no evidence
-                    () -> {
-                        textPanel.show("You set the fragments aside for now. Perhaps you'll return to them later.");
-                        panelMode = PanelMode.TEXT;
-                    }
-                );
+                        // On complete: collect evidence
+                        () -> {
+                            boolean isNew = evidenceSystem.collect(Evidence.TORN_LETTER);
+                            if (isNew) {
+                                gameState.addEvent("Found evidence: " + Evidence.TORN_LETTER.getDisplayName());
+                            }
+                            textPanel.show(
+                                    "Document reconstructed!\n\n\"...I have seen what James is doing... before the will is signed... you must...\"\n\nThe rest is ash. But someone knew. And they tried to warn him.\n\n[EVIDENCE FOUND: "
+                                            + Evidence.TORN_LETTER.getDisplayName() + "]");
+                            panelMode = PanelMode.TEXT;
+                        },
+                        // On cancel: no evidence
+                        () -> {
+                            textPanel.show("You set the fragments aside for now. Perhaps you'll return to them later.");
+                            panelMode = PanelMode.TEXT;
+                        });
                 break;
             default:
                 break;
@@ -519,18 +717,7 @@ public class GameScreen implements Screen {
             case "inventory":
                 showInventory();
                 break;
-            case "notebook":
-                showNotebook();
-                break;
-            case "suspects":
-                showSuspectList();
-                break;
-            case "hint":
-                showHint();
-                break;
-            case "accuse":
-                showAccusation();
-                break;
+
         }
     }
 
@@ -538,10 +725,16 @@ public class GameScreen implements Screen {
         String text = evidenceSystem.getInventoryText();
         List<TextButton> buttons = new ArrayList<>();
 
-        // Add PLAY buttons for unwatched tapes
+        // Add PLAY buttons for unwatched, unlocked tapes that are actually playable
         for (Tape t : gameState.getCollectedTapes()) {
-            if (!gameState.hasWatchedTape(t)) {
-                buttons.add(new TextButton("PLAY: " + t.getTitle(), 0, 0, 200, 35, "play_tape_" + t.name()));
+            if (!gameState.hasWatchedTape(t) && isTapeUnlocked(t)) {
+                // Suppress button for damaged tapes with no repair solutions left
+                boolean blockedByDamage = isDamagedTape(t)
+                        && !gameState.isTapeRepaired(t)
+                        && gameState.getRepairSolutionsRemaining() == 0;
+                if (!blockedByDamage) {
+                    buttons.add(new TextButton("PLAY: " + t.getTitle(), 0, 0, 220, 35, "play_tape_" + t.name()));
+                }
             }
         }
 
@@ -557,19 +750,39 @@ public class GameScreen implements Screen {
         StringBuilder sb = new StringBuilder();
         sb.append("=== DETECTIVE'S NOTEBOOK ===\n\n");
 
+        // 1. Status — compact single line
         sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS);
-        sb.append(" (").append(awarenessSystem.getLevelName()).append(")\n\n");
+        sb.append(" (").append(awarenessSystem.getLevelName()).append(")  |  ");
+        sb.append("Evidence: ").append(gameState.getCollectedEvidence().size()).append("/10  |  ");
+        sb.append("Tapes: ").append(gameState.getWatchedTapes().size()).append(" watched / ")
+                .append(gameState.getCollectedTapes().size()).append(" collected\n\n");
 
-        sb.append("Evidence collected: ").append(gameState.getCollectedEvidence().size()).append("/10\n");
-        sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/8\n");
-        sb.append("Tapes watched: ").append(gameState.getWatchedTapes().size()).append("/").append(gameState.getCollectedTapes().size()).append("\n\n");
+        // 2. Active Investigation — evidence gap + accusation status
+        sb.append("=== ACTIVE INVESTIGATION ===\n\n");
+        sb.append("James: ").append(evidenceSystem.getJamesEvidenceCount()).append("/7  |  ");
+        sb.append("Daniel: ").append(evidenceSystem.getDanielEvidenceCount()).append("/4\n");
+        if (evidenceSystem.canAccuseJamesAndDaniel()) {
+            sb.append("[Ready to accuse — open ACCUSE panel.]\n");
+        } else {
+            sb.append("[Need James >= 3 and Daniel >= 2 to accuse.]\n");
+        }
+        sb.append("\n");
 
-        // Split contradictions into Physical and Narrator sections
+        // 3. Suspect Cooperation
+        sb.append("=== SUSPECT COOPERATION ===\n\n");
+        for (Suspect s : Suspect.values()) {
+            sb.append(s.getDisplayName()).append(": ").append(gameState.getCooperation(s)).append("%\n");
+        }
+        sb.append("\n");
+
+        // 4. Physical Contradictions
         boolean hasPhysical = false;
         boolean hasNarrator = false;
         for (Contradiction c : gameState.getDiscoveredContradictions()) {
-            if (c.isNarratorContradiction()) hasNarrator = true;
-            else hasPhysical = true;
+            if (c.isNarratorContradiction())
+                hasNarrator = true;
+            else
+                hasPhysical = true;
         }
 
         if (hasPhysical) {
@@ -582,6 +795,7 @@ public class GameScreen implements Screen {
             }
         }
 
+        // 5. Narrator Contradictions
         if (hasNarrator) {
             sb.append("=== NARRATOR CONTRADICTIONS ===\n\n");
             int narratorCount = 0;
@@ -593,19 +807,12 @@ public class GameScreen implements Screen {
                 }
             }
             if (narratorCount >= 3) {
-                sb.append("[META-INSIGHT: The narrator is actively lying to you. Everything he says must be questioned. He's not guiding your investigation -- he's shaping it.]\n\n");
+                sb.append(
+                        "[META-INSIGHT: The narrator is actively lying to you. Everything he says must be questioned. He's not guiding your investigation -- he's shaping it.]\n\n");
             }
         }
 
-        // Narrator distortions section
-        if (!gameState.getNarratorDistortions().isEmpty()) {
-            sb.append("=== NARRATOR INCONSISTENCIES ===\n\n");
-            for (String distortion : gameState.getNarratorDistortions()) {
-                sb.append("* \"").append(distortion).append("\"\n\n");
-            }
-        }
-
-        // Entity anomalies section
+        // 6. Entity Anomalies
         if (!gameState.getDiscoveredAnomalies().isEmpty()) {
             sb.append("=== ENTITY ANOMALIES (").append(gameState.getAnomalyCount()).append("/7) ===\n\n");
             for (com.dsa.game.state.EntityAnomaly a : gameState.getDiscoveredAnomalies()) {
@@ -614,16 +821,15 @@ public class GameScreen implements Screen {
             }
         }
 
-        sb.append("=== SUSPECT COOPERATION ===\n\n");
-        for (Suspect s : Suspect.values()) {
-            sb.append(s.getDisplayName()).append(": ").append(gameState.getCooperation(s)).append("%\n");
+        // 7. Narrator Inconsistencies (meta/low priority)
+        if (!gameState.getNarratorDistortions().isEmpty()) {
+            sb.append("=== NARRATOR INCONSISTENCIES ===\n\n");
+            for (String distortion : gameState.getNarratorDistortions()) {
+                sb.append("* \"").append(distortion).append("\"\n\n");
+            }
         }
 
-        if (evidenceSystem.canAccuseJamesAndDaniel()) {
-            sb.append("\n[You have enough evidence to make an accusation.]");
-        }
-
-        sb.append("\n\n");
+        // 8. Achievements
         sb.append(achievementSystem.getAchievementsText());
 
         textPanel.show(sb.toString());
@@ -633,21 +839,26 @@ public class GameScreen implements Screen {
     private void showSuspectList() {
         List<TextButton> buttons = new ArrayList<>();
         for (Suspect s : Suspect.values()) {
-            buttons.add(new TextButton(s.getDisplayName(), 0, 0, 200, 35, "interview_" + s.name()));
+            int coop = gameState.getCooperation(s);
+            String label = s.getDisplayName() + "  [" + coop + "%]";
+            buttons.add(new TextButton(label, 0, 0, 260, 35, "interview_" + s.name()));
         }
-        textPanel.showButtons("=== SELECT SUSPECT TO INTERVIEW ===", buttons);
+        textPanel.showButtons("=== SUSPECTS ===\n\nSelect a suspect to interview.", buttons);
         panelMode = PanelMode.SUSPECT_LIST;
     }
 
     private void showHint() {
-        String hint = narratorSystem.filterText(hintSystem.getHint());
-        textPanel.show("=== HINT ===\n\n" + hint);
+        textPanel.show("=== HINT ===\n\n" + hintSystem.getHint());
         panelMode = PanelMode.TEXT;
     }
 
     private void showAccusation() {
         if (!evidenceSystem.canAccuseJamesAndDaniel()) {
-            textPanel.show("=== ACCUSATION ===\n\nYou don't have enough evidence yet.\n\nKeep investigating. Examine objects, collect tapes, and interview suspects to build your case.");
+            textPanel.show("=== ACCUSATION ===\n\n" +
+                    "Not enough evidence yet.\n\n" +
+                    "James: " + evidenceSystem.getJamesEvidenceCount() + "/7 (need 3)  |  " +
+                    "Daniel: " + evidenceSystem.getDanielEvidenceCount() + "/4 (need 2)\n\n" +
+                    "Keep investigating — examine objects, collect tapes, interview suspects.");
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -669,7 +880,10 @@ public class GameScreen implements Screen {
 
         buttons.add(new TextButton("Leave the Manor", 0, 0, 200, 35, "leave_manor"));
 
-        String header = "=== WHO KILLED HAROLD VANCE? ===\n\nSelect your accusation carefully.";
+        String header = "=== WHO KILLED HAROLD VANCE? ===\n\n" +
+                "Evidence against James: " + evidenceSystem.getJamesEvidenceCount() + "/6  |  " +
+                "Evidence against Daniel: " + evidenceSystem.getDanielEvidenceCount() + "/4\n\n" +
+                "Select your accusation carefully.";
         if (gameState.isClimaxTriggered()) {
             header += "\n\nOr... choose what to do about the Entity.";
         }
@@ -690,6 +904,53 @@ public class GameScreen implements Screen {
                     panelMode = PanelMode.TEXT;
                     return;
                 }
+                // Escape intercept: after climax text is closed, launch escape sequence
+                if (gameState.isClimaxTriggered() && panelMode == PanelMode.TEXT) {
+                    game.setScreen(new EscapeScreen(game));
+                    return;
+                }
+                // Catcher minigame intercept: show intro first, then launch on next dismiss
+                if (pendingCatcherTape != null && panelMode == PanelMode.TAPE_PLAY && !catcherIntroShown) {
+                    catcherIntroShown = true;
+                    textPanel.show("The narrator's voice fractures at the edges.\n\n\"Wait -- that's not what happened. That's not -- I remember it differently. I remember--\"\n\nSomething is fighting to distort what you just heard. Catch the true fragments before the distortion overwrites them.");
+                    panelMode = PanelMode.TEXT;
+                    return;
+                }
+                if (pendingCatcherTape != null && catcherIntroShown) {
+                    Tape catcherTape = pendingCatcherTape;
+                    pendingCatcherTape = null;
+                    catcherIntroShown = false;
+                    catcherPlayedTapes.add(catcherTape);
+                    returningFromMinigame = true;
+                    final GameScreen self = this;
+                    game.setScreen(new CatcherMinigame(game, gameState, catcherTape, () -> {
+                        self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                        game.setScreen(self);
+                    }));
+                    return;
+                }
+
+                // Maze minigame intercept: show intro first, then launch on next dismiss
+                if (pendingMazeTape != null && panelMode == PanelMode.TAPE_PLAY && !mazeIntroShown) {
+                    mazeIntroShown = true;
+                    textPanel.show("The house folds inward.\n\nSomething in the memory rejects what you just heard. The Narrator's weight presses against the truth.\n\nNavigate what it buried. Find the real path through its distortion.");
+                    panelMode = PanelMode.TEXT;
+                    return;
+                }
+                if (pendingMazeTape != null && mazeIntroShown) {
+                    Tape mazeTape = pendingMazeTape;
+                    pendingMazeTape = null;
+                    mazeIntroShown = false;
+                    mazePlayedTapes.add(mazeTape);
+                    returningFromMinigame = true;
+                    final GameScreen self = this;
+                    game.setScreen(new MazeMinigame(game, gameState, mazeTape, () -> {
+                        self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                        game.setScreen(self);
+                    }));
+                    return;
+                }
+
                 // Mini-game intercept: start mini-game after intro text
                 if (pendingMiniGame != null) {
                     startPendingMiniGame();
@@ -709,7 +970,8 @@ public class GameScreen implements Screen {
             try {
                 Tape tape = Tape.valueOf(tapeName);
                 playTape(tape);
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
             return;
         }
 
@@ -719,7 +981,8 @@ public class GameScreen implements Screen {
             try {
                 Suspect suspect = Suspect.valueOf(suspectName);
                 startInterview(suspect);
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
             return;
         }
 
@@ -736,7 +999,8 @@ public class GameScreen implements Screen {
             try {
                 Evidence evidence = Evidence.valueOf(evidenceName);
                 handleShowEvidence(evidence);
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
             return;
         }
 
@@ -756,7 +1020,8 @@ public class GameScreen implements Screen {
             try {
                 Suspect suspect = Suspect.valueOf(suspectName);
                 handleConfrontation(suspect);
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
             return;
         }
 
@@ -825,10 +1090,14 @@ public class GameScreen implements Screen {
         // Settings actions
         if ("cycle_text_speed".equals(action)) {
             float speed = TextPanel.getCharsPerSecond();
-            if (speed <= 20f) TextPanel.setCharsPerSecond(40f);
-            else if (speed <= 50f) TextPanel.setCharsPerSecond(80f);
-            else if (speed <= 100f) TextPanel.setCharsPerSecond(200f);
-            else TextPanel.setCharsPerSecond(20f);
+            if (speed <= 20f)
+                TextPanel.setCharsPerSecond(40f);
+            else if (speed <= 50f)
+                TextPanel.setCharsPerSecond(80f);
+            else if (speed <= 100f)
+                TextPanel.setCharsPerSecond(200f);
+            else
+                TextPanel.setCharsPerSecond(20f);
             showSettings();
             return;
         }
@@ -876,16 +1145,262 @@ public class GameScreen implements Screen {
         }
     }
 
+    private void removeHotspot(Room.RoomID roomId, String objectName) {
+        roomManager.getRoom(roomId).getHotspots().removeIf(
+                h -> objectName.equals(h.getObjectName()));
+    }
+
+    private void removeMargaretHotspot(String name) {
+        removeHotspot(Room.RoomID.MARGARET_ROOM, name);
+    }
+
+    // kit hotspot covers the top-drawer interior area
+    private void addMargaretKitHotspot() {
+        roomManager.getRoom(Room.RoomID.MARGARET_ROOM).getHotspots().add(0,
+                new Hotspot("kit", "Take: Tape Repair Kit", 264, 193, 115, 50));
+    }
+
+    // shoes hotspot covers the bottom-drawer interior area
+    private void addMargaretShoesHotspot() {
+        roomManager.getRoom(Room.RoomID.MARGARET_ROOM).getHotspots().add(0,
+                new Hotspot("shoes", "Examine: Stained Shoes", 264, 113, 124, 70));
+    }
+
+    /**
+     * Handles all Margaret's room drawer, kit, and shoes interactions.
+     * Returns non-null if handled (empty string = handled silently, non-empty =
+     * show text).
+     */
+    private String handleMargaretDrawer(String objectName) {
+        boolean topOpen = gameState.isMargaretTopOpen();
+        boolean botOpen = gameState.isMargaretBotOpen();
+        boolean kitTaken = gameState.hasTapeRepairKit();
+        boolean shoesTaken = gameState.isMargaretShoesExamined();
+        boolean canBothOpen = kitTaken && shoesTaken;
+
+        switch (objectName) {
+            case "top_drawer":
+                if (topOpen) {
+                    gameState.setMargaretTopOpen(false);
+                    removeMargaretHotspot("kit");
+                    return "";
+                } else if (botOpen && !canBothOpen) {
+                    return "The bottom drawer is still open. Close it first.";
+                } else {
+                    gameState.setMargaretTopOpen(true);
+                    if (!kitTaken) {
+                        removeMargaretHotspot("top_drawer");
+                        addMargaretKitHotspot();
+                    }
+                    return "";
+                }
+
+            case "bottom_drawer":
+                if (botOpen) {
+                    gameState.setMargaretBotOpen(false);
+                    removeMargaretHotspot("shoes");
+                    return "";
+                } else if (topOpen && !canBothOpen) {
+                    return "The top drawer is still open. Close it first.";
+                } else {
+                    gameState.setMargaretBotOpen(true);
+                    if (!shoesTaken) {
+                        removeMargaretHotspot("bottom_drawer");
+                        addMargaretShoesHotspot();
+                    }
+                    return "";
+                }
+
+            case "kit":
+                gameState.setHasTapeRepairKit(true);
+                gameState.addRepairSolution();
+                removeMargaretHotspot("kit");
+                roomManager.getRoom(Room.RoomID.MARGARET_ROOM).getHotspots().add(
+                    new Hotspot("top_drawer", "Examine: Top Drawer", 241, 207, 90, 49));
+                gameState.addEvent("Found tape repair kit in Margaret's room");
+                return "You take the tape splicing tools -- scissors, adhesive strips, a manual splicer.\n\n[Tape repair kit acquired. You can now repair damaged tapes.]";
+
+            case "shoes":
+                gameState.setMargaretShoesExamined(true);
+                removeMargaretHotspot("shoes");
+                roomManager.getRoom(Room.RoomID.MARGARET_ROOM).getHotspots().add(
+                    new Hotspot("bottom_drawer", "Examine: Bottom Drawer", 244, 121, 86, 85));
+                gameState.addEvent("Examined stained shoes in Margaret's room");
+                return "You take a closer look at the stains. Too dark for wine. Too deliberate. Someone wore these the night of the murder and tried to hide them here.";
+
+            default:
+                return null;
+        }
+    }
+
+    // --- Tape Progression Helpers ---
+
+    private boolean isTapeUnlocked(Tape tape) {
+        return gameState.isUnlockedTape(tape);
+    }
+
+    private boolean isDamagedTape(Tape tape) {
+        return tape == Tape.TAPE_DANIEL_INTERVIEW || tape == Tape.TAPE_MARGARET_ACCOUNT;
+    }
+
+    /**
+     * Called when new evidence is collected. Returns a narrator announcement
+     * string, or null.
+     */
+    private String checkEvidenceForCode(Evidence evidence) {
+        if (evidence == Evidence.WILL_COPY) {
+            gameState.learnCode("ESTATE-42");
+            boolean unlocked = gameState.unlockTape(Tape.TAPE_JAMES_INTERVIEW);
+            if (unlocked) {
+                return "\n\n[The documents contain a combination. A tape recorder case nearby snaps open.]";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Called after evidenceSystem.watchTape() to unlock the next tape in the chain.
+     */
+    private void revealCodeFromTape(Tape tape, StringBuilder sb) {
+        switch (tape) {
+            case TAPE_ARGUMENT:
+                gameState.learnCode("HEIR-CHANGE");
+                if (gameState.unlockTape(Tape.TAPE_MARGARET_INTERVIEW)) {
+                    sb.append("\n\n[A name was spoken. Something clicks open in the kitchen.]");
+                }
+                break;
+            case TAPE_MARGARET_INTERVIEW:
+                gameState.learnCode("GUEST-721");
+                if (gameState.unlockTape(Tape.TAPE_MARCUS_INTERVIEW)) {
+                    sb.append(
+                            "\n\n[Another name. Another door that was locked is locked no longer -- somewhere in the parlor.]");
+                }
+                break;
+            case TAPE_MARCUS_INTERVIEW:
+                gameState.learnCode("WINDOW-11");
+                if (gameState.unlockTape(Tape.TAPE_CHARLES_INTERVIEW)) {
+                    sb.append("\n\n[Someone was watching that night. A case elsewhere in the parlor yields.]");
+                }
+                break;
+            case TAPE_CHARLES_INTERVIEW: {
+                gameState.learnCode("LOG-1115");
+                boolean unlockedJames = gameState.unlockTape(Tape.TAPE_JAMES_INTERVIEW);
+                boolean unlockedDaniel = gameState.unlockTape(Tape.TAPE_DANIEL_INTERVIEW);
+                if (unlockedJames || unlockedDaniel) {
+                    sb.append(
+                            "\n\n[Two people were placed at the scene. Two recordings, somewhere in the manor, are now within reach.]");
+                }
+                break;
+            }
+            case TAPE_JAMES_INTERVIEW:
+                if (gameState.hasWatchedTape(Tape.TAPE_DANIEL_INTERVIEW)) {
+                    boolean unlocked = gameState.unlockTape(Tape.TAPE_MARGARET_ACCOUNT);
+                    if (unlocked) {
+                        sb.append(
+                                "\n\n[You've heard from both James and Daniel. Margaret's personal account tape is now accessible.]");
+                    }
+                }
+                break;
+            case TAPE_DANIEL_INTERVIEW:
+                if (gameState.hasWatchedTape(Tape.TAPE_JAMES_INTERVIEW)) {
+                    boolean unlocked = gameState.unlockTape(Tape.TAPE_MARGARET_ACCOUNT);
+                    if (unlocked) {
+                        sb.append(
+                                "\n\n[You've heard from both James and Daniel. Margaret's personal account tape is now accessible.]");
+                    }
+                }
+                break;
+            case TAPE_MARGARET_ACCOUNT:
+                gameState.learnCode("CELLAR-WARNING");
+                if (gameState.unlockTape(Tape.TAPE_ARTHUR_DEATH)) {
+                    sb.append("\n\n[Something shifts in the cellar. A recording that was sealed away is no longer.]");
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void showLockedTapeMessage(Tape tape) {
+        String hint;
+        switch (tape) {
+            case TAPE_MARGARET_INTERVIEW:
+                hint = "Harold's own recording names his heir. That name is the key.";
+                break;
+            case TAPE_MARCUS_INTERVIEW:
+                hint = "Margaret Vance's interview names another guest who was at the manor that night.";
+                break;
+            case TAPE_CHARLES_INTERVIEW:
+                hint = "Marcus Blackwood noticed something as he left. Listen to his interview.";
+                break;
+            case TAPE_JAMES_INTERVIEW:
+                hint = "Charles Webb's interview places a suspect at the study door. His account unlocks this.";
+                break;
+            case TAPE_DANIEL_INTERVIEW:
+                hint = "Charles Webb named two suspects. His interview unlocks both.";
+                break;
+            case TAPE_MARGARET_ACCOUNT:
+                hint = "Hear what both James and Daniel have to say first. Then Margaret's full account will speak for itself.";
+                break;
+            default:
+                hint = "Keep investigating.";
+        }
+        textPanel.show("LOCKED TAPE: " + tape.getTitle()
+                + "\n\nThe tape recorder is sealed in a protective case. Arthur locked these before he disappeared.\n\n"
+                + hint);
+        panelMode = PanelMode.TEXT;
+    }
+
     // --- Tape Playing ---
 
     private void playTape(Tape tape) {
-        // Tape 8 is physically damaged — needs repair kit from Margaret's Room
+        // Gate 1: Tape code-locked
+        if (!isTapeUnlocked(tape)) {
+            showLockedTapeMessage(tape);
+            return;
+        }
+
+        // Gate 2: Tape physically damaged (Tapes 3 and 7 only) — auto-repair if
+        // solutions available
+        boolean wasAutoRepaired = false;
+        if (isDamagedTape(tape) && !gameState.isTapeRepaired(tape)) {
+            if (gameState.getRepairSolutionsRemaining() > 0) {
+                gameState.useRepairSolution(tape);
+                wasAutoRepaired = true;
+                // Continue — tape is now repaired, play it
+            } else {
+                textPanel.show(
+                        "DAMAGED TAPE\n\nThis tape needs splicing equipment to repair, but you have none left.\n\n[Find tape repair solutions in the manor -- check the Servants' Quarters nightstand, the Study fireplace ashes, the Kitchen flour tin, and the Cellar flour sacks.]");
+                panelMode = PanelMode.TEXT;
+                return;
+            }
+        }
+
+        // Gate 3: Tape 8 — needs repair kit from Margaret's Room
         if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.hasTapeRepairKit()) {
             textPanel.show("DAMAGED TAPE\n\nThe tape's casing is cracked and the ribbon inside " +
-                "is snapped. You can hear fragments rattling loose inside the housing.\n\n" +
-                "Someone recorded something important on this tape, but it's been badly damaged -- " +
-                "possibly deliberately. You'd need recording equipment to splice the ribbon back together.\n\n" +
-                "[Find a way to repair this tape.]");
+                    "is snapped. You can hear fragments rattling loose inside the housing.\n\n" +
+                    "Someone recorded something important on this tape, but it's been badly damaged -- " +
+                    "possibly deliberately. You'd need recording equipment to splice the ribbon back together.\n\n" +
+                    "[Find a way to repair this tape.]");
+            panelMode = PanelMode.TEXT;
+            return;
+        }
+
+        // Gate 4: Tape 8 — must have learned CELLAR-WARNING (watched Tape 7)
+        if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.hasLearnedCode("CELLAR-WARNING")) {
+            textPanel.show(
+                    "DAMAGED TAPE -- SEQUENCE INCOMPLETE\n\nThe tape is repaired, but something holds you back. There is another recording you must hear first.\n\n[Find and watch Margaret's personal account.]");
+            panelMode = PanelMode.TEXT;
+            return;
+        }
+
+        // Gate 5: Tape 8 — 3 contradictions required
+        if (tape == Tape.TAPE_ARTHUR_DEATH && gameState.getDiscoveredContradictions().size() < 3) {
+            int remaining = 3 - gameState.getDiscoveredContradictions().size();
+            textPanel.show("DAMAGED TAPE\n\nThe tape is repaired. But " + remaining + " contradiction"
+                    + (remaining > 1 ? "s remain" : " remains")
+                    + " unresolved in this case. The full truth requires more investigation.\n\n[Present evidence during interviews to uncover contradictions.]");
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -896,11 +1411,16 @@ public class GameScreen implements Screen {
 
         // Variable awareness cost: +5 for climax tape, +4 for others
         int awarenessCost = (tape == Tape.TAPE_ARTHUR_DEATH)
-            ? ClimaxContent.TAPE_8_AWARENESS_COST
-            : ClimaxContent.STANDARD_TAPE_AWARENESS_COST;
+                ? ClimaxContent.TAPE_8_AWARENESS_COST
+                : ClimaxContent.STANDARD_TAPE_AWARENESS_COST;
         String warning = awarenessSystem.addAwareness(awarenessCost);
 
         StringBuilder sb = new StringBuilder();
+
+        if (wasAutoRepaired) {
+            sb.append("[Tape repaired using a splicing solution. Repair solutions remaining: ")
+                    .append(gameState.getRepairSolutionsRemaining()).append("]\n\n");
+        }
 
         // Tape 8 (The Opening) has a special prefix about its unknown origin
         if (tape == Tape.TAPE_ARTHUR_DEATH) {
@@ -918,13 +1438,29 @@ public class GameScreen implements Screen {
             sb.append("\n\n--- ").append(narratorSystem.getWarning());
         }
 
-        // Tape 8 (The Opening) triggers the climax sequence - it's Arthur's death recording found in the cellar
+        // Reveal next unlock in chain
+        revealCodeFromTape(tape, sb);
+
+        // Tape 8 (The Opening) triggers the climax sequence - it's Arthur's death
+        // recording found in the cellar
         if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.isClimaxTriggered()) {
             pendingClimax = true;
         }
 
         textPanel.show(sb.toString());
         panelMode = PanelMode.TAPE_PLAY;
+
+        // Queue the Catcher minigame for the first three tapes (once per tape)
+        if ((tape == Tape.TAPE_ARGUMENT || tape == Tape.TAPE_JAMES_INTERVIEW || tape == Tape.TAPE_DANIEL_INTERVIEW)
+                && !catcherPlayedTapes.contains(tape)) {
+            pendingCatcherTape = tape;
+        }
+
+        // Queue the Maze minigame for tapes 4-6 (once per tape)
+        if ((tape == Tape.TAPE_MARGARET_INTERVIEW || tape == Tape.TAPE_MARCUS_INTERVIEW || tape == Tape.TAPE_CHARLES_INTERVIEW)
+                && !mazePlayedTapes.contains(tape)) {
+            pendingMazeTape = tape;
+        }
     }
 
     // --- Interview ---
@@ -979,7 +1515,8 @@ public class GameScreen implements Screen {
         if (gameState.hasEvidence(Evidence.LETTER_OPENER) && !gameState.hasContradiction(Contradiction.WEAPON)) {
             buttons.add(new TextButton("Challenge: Weapon", 0, 0, 200, 35, "contra_weapon"));
         }
-        if (gameState.hasEvidence(Evidence.BLOODSTAINED_CUFF) && !gameState.hasContradiction(Contradiction.BODY_POSITION)) {
+        if (gameState.hasEvidence(Evidence.BLOODSTAINED_CUFF)
+                && !gameState.hasContradiction(Contradiction.BODY_POSITION)) {
             buttons.add(new TextButton("Challenge: Body Position", 0, 0, 200, 35, "contra_body"));
         }
 
@@ -994,13 +1531,16 @@ public class GameScreen implements Screen {
                     canConfront = evidenceSystem.getDanielEvidenceCount() >= 2;
                     break;
                 case MARGARET:
-                    canConfront = gameState.hasEvidence(Evidence.TORN_LETTER) && gameState.hasEvidence(Evidence.WILL_COPY);
+                    canConfront = gameState.hasEvidence(Evidence.TORN_LETTER)
+                            && gameState.hasEvidence(Evidence.WILL_COPY);
                     break;
                 case MARCUS:
-                    canConfront = gameState.hasEvidence(Evidence.FINANCIAL_RECORDS) || gameState.hasEvidence(Evidence.WILL_COPY);
+                    canConfront = gameState.hasEvidence(Evidence.FINANCIAL_RECORDS)
+                            || gameState.hasEvidence(Evidence.WILL_COPY);
                     break;
                 case CHARLES:
-                    canConfront = gameState.hasEvidence(Evidence.FINANCIAL_RECORDS) && gameState.hasEvidence(Evidence.TORN_LETTER);
+                    canConfront = gameState.hasEvidence(Evidence.FINANCIAL_RECORDS)
+                            && gameState.hasEvidence(Evidence.TORN_LETTER);
                     break;
             }
             if (canConfront) {
@@ -1011,7 +1551,9 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("Show Evidence", 0, 0, 200, 35, "show_evidence_list"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
 
-        textPanel.showButtons("Interview: " + suspect.getDisplayName() + " (Cooperation: " + gameState.getCooperation(suspect) + "%)", buttons);
+        textPanel.showButtons(
+                "Interview: " + suspect.getDisplayName() + " (Cooperation: " + gameState.getCooperation(suspect) + "%)",
+                buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1042,6 +1584,7 @@ public class GameScreen implements Screen {
         if (distortion != null) {
             sb.append("\n\n[The narrator interjects: \"").append(distortion).append("\"]");
             gameState.addNarratorDistortion(distortion);
+            narratorSystem.checkDistortionContradictions(distortion);
         }
         if (warning != null) {
             sb.append("\n\n--- ").append(narratorSystem.getWarning());
@@ -1066,7 +1609,9 @@ public class GameScreen implements Screen {
         if (gameState.getCollectedEvidence().isEmpty()) {
             textPanel.showButtons("No evidence to show.\nCollect evidence by examining objects.", buttons);
         } else {
-            textPanel.showButtons("Select evidence to show " + interviewSystem.getCurrentSuspect().getDisplayName() + ":", buttons);
+            Suspect activeSuspect = interviewSystem.getCurrentSuspect();
+            String suspectLabel = (activeSuspect != null) ? activeSuspect.getDisplayName() : "the suspect";
+            textPanel.showButtons("Select evidence to show " + suspectLabel + ":", buttons);
         }
         panelMode = PanelMode.SHOW_EVIDENCE;
     }
@@ -1109,12 +1654,17 @@ public class GameScreen implements Screen {
         String response = interviewSystem.presentWeaponContradiction();
         gameState.addEvent("Discovered contradiction: Weapon");
 
-        if (gameState.isGameOver()) { showGameOver(); return; }
+        if (gameState.isGameOver()) {
+            showGameOver();
+            return;
+        }
 
         StringBuilder sb = new StringBuilder(response);
         String bleedW = narratorSystem.maybeGetChannelingBleedThrough();
-        if (bleedW != null) sb.append("\n\n").append(bleedW);
-        if (warning != null) sb.append("\n\n--- ").append(narratorSystem.getWarning());
+        if (bleedW != null)
+            sb.append("\n\n").append(bleedW);
+        if (warning != null)
+            sb.append("\n\n--- ").append(narratorSystem.getWarning());
 
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
@@ -1128,12 +1678,17 @@ public class GameScreen implements Screen {
         String response = interviewSystem.presentBodyContradiction();
         gameState.addEvent("Discovered contradiction: Body position");
 
-        if (gameState.isGameOver()) { showGameOver(); return; }
+        if (gameState.isGameOver()) {
+            showGameOver();
+            return;
+        }
 
         StringBuilder sb = new StringBuilder(response);
         String bleedB = narratorSystem.maybeGetChannelingBleedThrough();
-        if (bleedB != null) sb.append("\n\n").append(bleedB);
-        if (warning != null) sb.append("\n\n--- ").append(narratorSystem.getWarning());
+        if (bleedB != null)
+            sb.append("\n\n").append(bleedB);
+        if (warning != null)
+            sb.append("\n\n--- ").append(narratorSystem.getWarning());
 
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
@@ -1150,12 +1705,17 @@ public class GameScreen implements Screen {
         gameState.markConfronted(suspect);
         gameState.addEvent("Confronted " + suspect.getDisplayName());
 
-        if (gameState.isGameOver()) { showGameOver(); return; }
+        if (gameState.isGameOver()) {
+            showGameOver();
+            return;
+        }
 
         StringBuilder sb = new StringBuilder(response);
         String bleedC = narratorSystem.maybeGetChannelingBleedThrough();
-        if (bleedC != null) sb.append("\n\n").append(bleedC);
-        if (warning != null) sb.append("\n\n--- ").append(narratorSystem.getWarning());
+        if (bleedC != null)
+            sb.append("\n\n").append(bleedC);
+        if (warning != null)
+            sb.append("\n\n--- ").append(narratorSystem.getWarning());
 
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
@@ -1167,12 +1727,20 @@ public class GameScreen implements Screen {
     // --- Accusation ---
 
     private void handleAccusation(String action) {
+        if (gameState.getWrongAccusationCount() >= 3) {
+            textPanel.show("ACCUSATION BLOCKED\n\nAfter " + gameState.getWrongAccusationCount() +
+                    " wrong accusations, the suspects have closed ranks. They won't engage with " +
+                    "further accusations.\n\n[Build a stronger case before accusing anyone else.]");
+            panelMode = PanelMode.TEXT;
+            return;
+        }
         gameState.setAccusationMade(true);
         String accusationTarget = action.replace("accuse_", "").replace("_", " ");
         gameState.addEvent("Made accusation: " + accusationTarget);
 
         if ("accuse_james_daniel".equals(action)) {
             gameState.setGameWon(true);
+            gameState.setChosenEnding(GameState.Ending.ACCUSATION_CORRECT);
 
             StringBuilder winText = new StringBuilder();
             winText.append("=== CASE SOLVED ===\n\n");
@@ -1182,8 +1750,10 @@ public class GameScreen implements Screen {
             winText.append("the embezzlement, conspired with Daniel -- who had been laundering the money -- to kill ");
             winText.append("Harold before the new will could be signed.\n\n");
             winText.append("James killed the drugged Harold with the fireplace poker. Later, Daniel entered through ");
-            winText.append("the study window to help move the body to the cellar. But they were sloppy. They left too many traces.\n\n");
-            winText.append("Margaret is cleared. Marcus Blackwood and Charles Webb cooperate fully with the investigation.\n\n");
+            winText.append(
+                    "the study window to help move the body to the cellar. But they were sloppy. They left too many traces.\n\n");
+            winText.append(
+                    "Margaret is cleared. Marcus Blackwood and Charles Webb cooperate fully with the investigation.\n\n");
 
             // Variant text by evidence completeness
             int evidenceCount = gameState.getCollectedEvidence().size();
@@ -1191,7 +1761,8 @@ public class GameScreen implements Screen {
             int tapeCount = gameState.getCollectedTapes().size();
             if (evidenceCount >= 10 && watchedCount >= 8) {
                 winText.append("Your case is IRONCLAD. Every piece of evidence accounted for, every tape reviewed. ");
-                winText.append("The prosecution has no gaps to exploit. James and Daniel will face the full weight of justice.\n\n");
+                winText.append(
+                        "The prosecution has no gaps to exploit. James and Daniel will face the full weight of justice.\n\n");
             } else {
                 winText.append("Your case is solid, but gaps remain. Evidence: ").append(evidenceCount).append("/10, ");
                 winText.append("Tapes watched: ").append(watchedCount).append("/").append(tapeCount).append(". ");
@@ -1222,15 +1793,18 @@ public class GameScreen implements Screen {
             }
 
             winText.append("CONGRATULATIONS -- YOU SOLVED THE CASE!\n\n");
-            winText.append("Final Awareness: ").append(awareness).append("/").append(GameState.MAX_AWARENESS).append("\n");
+            winText.append("Final Awareness: ").append(awareness).append("/").append(GameState.MAX_AWARENESS)
+                    .append("\n");
             winText.append("Commands used: ").append(gameState.getCommandCount());
 
             // Check achievements
             java.util.List<com.dsa.game.state.Achievement> newAchievements = achievementSystem.checkOnWin();
+            newAchievements.addAll(achievementSystem.checkOnEnding(GameState.Ending.ACCUSATION_CORRECT));
             if (!newAchievements.isEmpty()) {
                 winText.append("\n\n=== ACHIEVEMENTS UNLOCKED ===\n\n");
                 for (com.dsa.game.state.Achievement a : newAchievements) {
-                    winText.append("* ").append(a.getDisplayName()).append(" -- ").append(a.getDescription()).append("\n");
+                    winText.append("* ").append(a.getDisplayName()).append(" -- ").append(a.getDescription())
+                            .append("\n");
                 }
             }
 
@@ -1284,6 +1858,7 @@ public class GameScreen implements Screen {
                 sb.append("\n\n--- ").append(warning);
             }
 
+            gameState.setChosenEnding(GameState.Ending.ACCUSATION_WRONG);
             gameState.setAccusationMade(false); // allow retry
             textPanel.show(sb.toString());
             panelMode = PanelMode.TEXT;
@@ -1297,10 +1872,14 @@ public class GameScreen implements Screen {
 
         float speed = TextPanel.getCharsPerSecond();
         String speedLabel;
-        if (speed <= 20f) speedLabel = "Slow";
-        else if (speed <= 50f) speedLabel = "Normal";
-        else if (speed <= 100f) speedLabel = "Fast";
-        else speedLabel = "Instant";
+        if (speed <= 20f)
+            speedLabel = "Slow";
+        else if (speed <= 50f)
+            speedLabel = "Normal";
+        else if (speed <= 100f)
+            speedLabel = "Fast";
+        else
+            speedLabel = "Instant";
         buttons.add(new TextButton("Text Speed: " + speedLabel, 0, 0, 200, 35, "cycle_text_speed"));
 
         String filterLabel = narratorSystem.isFilterEnabled() ? "ON" : "OFF";
@@ -1316,6 +1895,8 @@ public class GameScreen implements Screen {
 
     private void handleLeaveManor() {
         gameState.setGameOver(true);
+        gameState.setChosenEnding(GameState.Ending.LEAVE_MANOR);
+        achievementSystem.checkOnEnding(GameState.Ending.LEAVE_MANOR);
         int evidenceCount = gameState.getCollectedEvidence().size();
 
         StringBuilder sb = new StringBuilder();
@@ -1348,7 +1929,8 @@ public class GameScreen implements Screen {
         sb.append("=== FINAL STATS ===\n");
         sb.append("Evidence collected: ").append(evidenceCount).append("/10\n");
         sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/8\n");
-        sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS).append("\n");
+        sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS)
+                .append("\n");
         sb.append("Commands used: ").append(gameState.getCommandCount());
 
         textPanel.show(sb.toString());
@@ -1390,7 +1972,8 @@ public class GameScreen implements Screen {
         sb.append("Evidence collected: ").append(gameState.getCollectedEvidence().size()).append("/10\n");
         sb.append("Tapes collected: ").append(gameState.getCollectedTapes().size()).append("/8\n");
         sb.append("Anomalies discovered: ").append(gameState.getAnomalyCount()).append("/7\n");
-        sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS).append("\n");
+        sb.append("Awareness: ").append(gameState.getAwareness()).append("/").append(GameState.MAX_AWARENESS)
+                .append("\n");
         sb.append("Commands used: ").append(gameState.getCommandCount());
 
         // Check ending achievements
@@ -1472,7 +2055,8 @@ public class GameScreen implements Screen {
             // Mid game
             sb.append("PRIMARY OBJECTIVES:\n");
             sb.append("* Continue gathering evidence (").append(evidenceCount).append("/10)\n");
-            sb.append("* Find and watch tapes (").append(tapeCount).append("/8 found, ").append(watchedCount).append(" watched)\n");
+            sb.append("* Find and watch tapes (").append(tapeCount).append("/8 found, ").append(watchedCount)
+                    .append(" watched)\n");
             sb.append("* Interview suspects and show them evidence\n\n");
 
             int jamesEvidence = evidenceSystem.getJamesEvidenceCount();
@@ -1549,28 +2133,39 @@ public class GameScreen implements Screen {
     }
 
     /**
-     * Load a save file into this GameScreen. Called by TitleScreen after construction.
+     * Load a save file into this GameScreen. Called by TitleScreen after
+     * construction.
      */
     public void loadFromSave(String slotName) {
+        isLoadedGame = true;
         Room.RoomID roomId = saveLoadSystem.load(gameState, slotName);
         if (roomId != null) {
             roomManager.navigateTo(roomId);
             pendingClimax = false;
+        } else {
+            textPanel.show(
+                    "Failed to load save file.\n\nThe save file may be corrupted or from an older version of the game.");
+            panelMode = PanelMode.TEXT;
         }
     }
 
     // --- Game Over ---
 
     private void showGameOver() {
-        textPanel.show("=== GAME OVER ===\n\n" +
-            "The household has closed ranks against you. Doors are locked, " +
-            "witnesses refuse to speak, and evidence begins to disappear.\n\n" +
-            "You've been asked to leave Vance Manor. The murder of Harold Vance " +
-            "will remain unsolved.\n\n" +
-            "The killers go free.\n\n" +
-            "Awareness reached " + gameState.getAwareness() + "/" + GameState.MAX_AWARENESS + ".\n" +
-            "Evidence collected: " + gameState.getCollectedEvidence().size() + "/10\n" +
-            "Tapes collected: " + gameState.getCollectedTapes().size() + "/8");
+        gameState.setChosenEndingByName("GAME_OVER_AWARENESS");
+        achievementSystem.checkOnEnding(GameState.Ending.GAME_OVER_AWARENESS);
+        List<TextButton> buttons = new ArrayList<>();
+        buttons.add(new TextButton("Return to Main Menu", 0, 0, 220, 35, "quit_to_menu"));
+        textPanel.showButtons("=== GAME OVER ===\n\n" +
+                "The household has closed ranks against you. Doors are locked, " +
+                "witnesses refuse to speak, and evidence begins to disappear.\n\n" +
+                "You've been asked to leave Vance Manor. The murder of Harold Vance " +
+                "will remain unsolved.\n\n" +
+                "The killers go free.\n\n" +
+                "Awareness reached " + gameState.getAwareness() + "/" + GameState.MAX_AWARENESS + ".\n" +
+                "Evidence collected: " + gameState.getCollectedEvidence().size() + "/10\n" +
+                "Tapes collected: " + gameState.getCollectedTapes().size() + "/8",
+                buttons);
         panelMode = PanelMode.TEXT;
     }
 
@@ -1578,6 +2173,8 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        if (minigameReturnCooldown > 0f) minigameReturnCooldown -= delta;
+
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
@@ -1601,29 +2198,80 @@ public class GameScreen implements Screen {
 
         // Draw room background
         Texture roomTex = roomTextures.get(currentRoom.getId());
+        if (currentRoom.getId() == Room.RoomID.KITCHEN
+                && kitchenWithoutTapeTex != null
+                && gameState.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) {
+            roomTex = kitchenWithoutTapeTex;
+        }
+        if (currentRoom.getId() == Room.RoomID.JAMES_ROOM
+                && jamesClosedTex != null
+                && gameState.getExamCount(Room.RoomID.JAMES_ROOM, "wardrobe") == 0) {
+            roomTex = jamesClosedTex;
+        }
+        if (currentRoom.getId() == Room.RoomID.GROUNDSKEEPER_SHED) {
+            boolean tapeTaken  = gameState.hasTape(Tape.TAPE_DANIEL_INTERVIEW);
+            boolean bootsTaken = gameState.hasEvidence(Evidence.MUDDY_BOOTS);
+            if (!tapeTaken && !bootsTaken && shedTapeBoots     != null) roomTex = shedTapeBoots;
+            else if (!tapeTaken && bootsTaken && shedTapeNoBoots  != null) roomTex = shedTapeNoBoots;
+            else if (tapeTaken  && !bootsTaken && shedNoTapeBoots != null) roomTex = shedNoTapeBoots;
+            else if (tapeTaken  && bootsTaken && shedNoTapeNoBoots != null) roomTex = shedNoTapeNoBoots;
+        }
+        if (currentRoom.getId() == Room.RoomID.MARGARET_ROOM) {
+            boolean tapeTaken = gameState.hasTape(Tape.TAPE_MARGARET_ACCOUNT);
+            boolean topOpen = gameState.isMargaretTopOpen();
+            boolean botOpen = gameState.isMargaretBotOpen();
+            boolean kitTaken = gameState.hasTapeRepairKit();
+            boolean shoesTaken = gameState.isMargaretShoesExamined();
+            Texture t = null;
+            if (!tapeTaken) {
+                if (!topOpen && !botOpen)
+                    t = mTapeTopClosedBotClosed;
+                else if (!topOpen && botOpen && !shoesTaken)
+                    t = mTapeTopClosedBotOpenShoes;
+                else if (!topOpen && botOpen && shoesTaken)
+                    t = mTapeTopClosedBotOpenNoShoes;
+                else if (topOpen && !botOpen && !kitTaken)
+                    t = mTapeTopOpenKit;
+                else if (topOpen && !botOpen && kitTaken)
+                    t = mTapeTopOpenNoKit;
+                else if (topOpen && botOpen)
+                    t = mTapeTopOpenNoKitBotOpen;
+            } else {
+                if (!topOpen && !botOpen)
+                    t = mNoTapeTopClosedBotClosed;
+                else if (!topOpen && botOpen && !shoesTaken)
+                    t = mNoTapeTopClosedBotOpenShoes;
+                else if (!topOpen && botOpen && shoesTaken)
+                    t = mNoTapeTopClosedBotOpenNoShoes;
+                else if (topOpen && !botOpen && !kitTaken)
+                    t = mNoTapeTopOpenKit;
+                else if (topOpen && !botOpen && kitTaken)
+                    t = mNoTapeTopOpenNoKit;
+                else if (topOpen && botOpen)
+                    t = mNoTapeTopOpenNoKitBotOpen;
+            }
+            if (t != null)
+                roomTex = t;
+        }
         if (roomTex != null) {
             batch.draw(roomTex, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
         }
 
-        // Draw subtle outline glow on hovered hotspots
+
+
+        // Draw back button if this room has a back hotspot
+        boolean hasBackHotspot = false;
         for (Hotspot hotspot : currentRoom.getHotspots()) {
-            if (hotspot.isHovered()) {
-                Rectangle hb = hotspot.getBounds();
-                float glowAlpha = 0.35f;
-                // Outer glow (2px border)
-                batch.setColor(0.9f, 0.85f, 0.6f, glowAlpha * 0.4f);
-                batch.draw(pixelTexture, hb.x - 2, hb.y - 2, hb.width + 4, 2);                      // bottom
-                batch.draw(pixelTexture, hb.x - 2, hb.y + hb.height, hb.width + 4, 2);               // top
-                batch.draw(pixelTexture, hb.x - 2, hb.y, 2, hb.height);                              // left
-                batch.draw(pixelTexture, hb.x + hb.width, hb.y, 2, hb.height);                       // right
-                // Inner glow (1px border)
-                batch.setColor(0.95f, 0.9f, 0.7f, glowAlpha);
-                batch.draw(pixelTexture, hb.x, hb.y, hb.width, 1);                                   // bottom
-                batch.draw(pixelTexture, hb.x, hb.y + hb.height - 1, hb.width, 1);                   // top
-                batch.draw(pixelTexture, hb.x, hb.y, 1, hb.height);                                  // left
-                batch.draw(pixelTexture, hb.x + hb.width - 1, hb.y, 1, hb.height);                   // right
-                batch.setColor(Color.WHITE);
+            if (hotspot.getType() == Hotspot.HotspotType.ARROW_BACK) {
+                hasBackHotspot = true;
+                break;
             }
+        }
+        if (hasBackHotspot && backButtonTexture != null) {
+            batch.setColor(Color.WHITE);
+            batch.draw(backButtonTexture,
+                    HotspotPositions.BACK_BTN_X, HotspotPositions.BACK_BTN_Y,
+                    HotspotPositions.BACK_BTN_W, HotspotPositions.BACK_BTN_H);
         }
 
         // Draw room name with text shadow (top-left, fades out)
@@ -1660,8 +2308,10 @@ public class GameScreen implements Screen {
             if (tooltipY + tooltipH > DSAGame.SCREEN_HEIGHT - 5) {
                 tooltipY = touchPos.y - tooltipH - 5;
             }
-            if (tooltipX < 5) tooltipX = 5;
-            if (tooltipY < 5) tooltipY = 5;
+            if (tooltipX < 5)
+                tooltipX = 5;
+            if (tooltipY < 5)
+                tooltipY = 5;
 
             // Dark teal-black background
             batch.setColor(0.06f, 0.1f, 0.1f, 0.92f);
@@ -1669,10 +2319,10 @@ public class GameScreen implements Screen {
 
             // Muted gold border
             batch.setColor(0.6f, 0.55f, 0.35f, 0.8f);
-            batch.draw(pixelTexture, tooltipX, tooltipY, tooltipW, 1);                    // bottom
-            batch.draw(pixelTexture, tooltipX, tooltipY + tooltipH - 1, tooltipW, 1);     // top
-            batch.draw(pixelTexture, tooltipX, tooltipY, 1, tooltipH);                    // left
-            batch.draw(pixelTexture, tooltipX + tooltipW - 1, tooltipY, 1, tooltipH);     // right
+            batch.draw(pixelTexture, tooltipX, tooltipY, tooltipW, 1); // bottom
+            batch.draw(pixelTexture, tooltipX, tooltipY + tooltipH - 1, tooltipW, 1); // top
+            batch.draw(pixelTexture, tooltipX, tooltipY, 1, tooltipH); // left
+            batch.draw(pixelTexture, tooltipX + tooltipW - 1, tooltipY, 1, tooltipH); // right
 
             // Cream text
             batch.setColor(Color.WHITE);
@@ -1681,14 +2331,14 @@ public class GameScreen implements Screen {
             font.setColor(Color.WHITE);
         }
 
-        // Draw room description with text shadow (fades out), positioned above action bar
+        // Draw room description with text shadow (fades out), positioned above action
+        // bar
         float descAlpha = MathUtils.clamp(1f - (descFadeTimer - DESC_FADE_DURATION), 0f, 1f);
         if (descAlpha > 0) {
             String description = RoomDescriptions.getDescription(
-                currentRoom.getId(),
-                gameState.getVisitCount(currentRoom.getId()),
-                gameState.getAwareness()
-            );
+                    currentRoom.getId(),
+                    gameState.getVisitCount(currentRoom.getId()),
+                    gameState.getAwareness());
             float descX = 20;
             float descY = actionBar.getBarHeight() + 30;
 
@@ -1718,6 +2368,7 @@ public class GameScreen implements Screen {
             documentGame.render(batch, font);
         }
 
+
         batch.end();
     }
 
@@ -1727,23 +2378,116 @@ public class GameScreen implements Screen {
     }
 
     @Override
-    public void show() {}
+    public void show() {
+        setupInput();
+        if (!isLoadedGame && !returningFromMinigame) {
+            showOpeningSequence();
+        }
+        returningFromMinigame = false;
+        // Remove already-collected item hotspots (handles loaded saves)
+        if (gameState.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) {
+            removeHotspot(Room.RoomID.KITCHEN, "kitchen_floor");
+        }
+        if (gameState.hasTape(Tape.TAPE_MARGARET_ACCOUNT)) {
+            removeHotspot(Room.RoomID.MARGARET_ROOM, "tape_recorder");
+        }
+        if (gameState.hasTape(Tape.TAPE_DANIEL_INTERVIEW)) {
+            removeHotspot(Room.RoomID.GROUNDSKEEPER_SHED, "logbook");
+        }
+        if (gameState.hasEvidence(Evidence.MUDDY_BOOTS)) {
+            removeHotspot(Room.RoomID.GROUNDSKEEPER_SHED, "shelf");
+        }
+        if (gameState.getExamCount(Room.RoomID.JAMES_ROOM, "wardrobe") > 0) {
+            removeHotspot(Room.RoomID.JAMES_ROOM, "wardrobe");
+            roomManager.getRoom(Room.RoomID.JAMES_ROOM)
+                    .addHotspot(new Hotspot("coat", "Examine: James's Coat", 879, 314, 53, 178));
+        }
+        // Restore drawer hotspot state if drawers were open when saved
+        if (gameState.isMargaretTopOpen() && !gameState.hasTapeRepairKit()) {
+            removeHotspot(Room.RoomID.MARGARET_ROOM, "top_drawer");
+            addMargaretKitHotspot();
+        }
+        if (gameState.isMargaretBotOpen() && !gameState.isMargaretShoesExamined()) {
+            removeHotspot(Room.RoomID.MARGARET_ROOM, "bottom_drawer");
+            addMargaretShoesHotspot();
+        }
+    }
+
+    private void showOpeningSequence() {
+        gameState.setNarratorHeaderShown(true); // prevent it firing again on first examine
+
+        textPanel.show(
+                "[A voice fills your mind{p} -- not from any direction,{p} but from everywhere at once.{p} Like a memory that isn't yours.]{P}\n\n"
+                        +
+                        "\"Ah.{p} You came.{p} Good.{P} I've been waiting for someone " +
+                        "who would listen.{p} My name doesn't matter{p} -- what matters is what happened " +
+                        "in this house.{p} I'll guide you as best I can.{p} Look at everything.{p} " +
+                        "Touch nothing carelessly.{P}\n\n" +
+                        "Trust what you see.{p} Question what you're told.{p} And whatever you do...{P} " +
+                        "keep your conclusions to yourself.\"{P}\n\n" +
+                        "---\n\n" +
+                        "The main entrance of Vance Manor.{p} Dust motes float in dim light from a grand " +
+                        "chandelier.{p} The air smells of old wood and something faintly metallic.{p} Doors " +
+                        "lead deeper into the house.\n\n" +
+                        "Somewhere in this manor, a murder went unsolved.{p} The evidence is still here.{p} " +
+                        "So are the secrets.");
+        panelMode = PanelMode.TEXT;
+    }
 
     @Override
-    public void hide() {}
+    public void hide() {
+        Gdx.input.setInputProcessor(null);
+    }
 
     @Override
-    public void pause() {}
+    public void pause() {
+    }
 
     @Override
-    public void resume() {}
+    public void resume() {
+    }
 
     @Override
     public void dispose() {
         font.dispose();
         titleFont.dispose();
-        for (Texture tex : roomTextures.values()) tex.dispose();
+        for (Texture tex : roomTextures.values())
+            tex.dispose();
+        if (kitchenWithoutTapeTex != null)
+            kitchenWithoutTapeTex.dispose();
+        if (jamesClosedTex != null)
+            jamesClosedTex.dispose();
+        if (shedTapeBoots != null)    shedTapeBoots.dispose();
+        if (shedTapeNoBoots != null)  shedTapeNoBoots.dispose();
+        if (shedNoTapeBoots != null)  shedNoTapeBoots.dispose();
+        if (shedNoTapeNoBoots != null) shedNoTapeNoBoots.dispose();
+        if (mTapeTopClosedBotClosed != null)
+            mTapeTopClosedBotClosed.dispose();
+        if (mTapeTopClosedBotOpenShoes != null)
+            mTapeTopClosedBotOpenShoes.dispose();
+        if (mTapeTopClosedBotOpenNoShoes != null)
+            mTapeTopClosedBotOpenNoShoes.dispose();
+        if (mTapeTopOpenKit != null)
+            mTapeTopOpenKit.dispose();
+        if (mTapeTopOpenNoKit != null)
+            mTapeTopOpenNoKit.dispose();
+        if (mTapeTopOpenNoKitBotOpen != null)
+            mTapeTopOpenNoKitBotOpen.dispose();
+        if (mNoTapeTopClosedBotClosed != null)
+            mNoTapeTopClosedBotClosed.dispose();
+        if (mNoTapeTopClosedBotOpenShoes != null)
+            mNoTapeTopClosedBotOpenShoes.dispose();
+        if (mNoTapeTopClosedBotOpenNoShoes != null)
+            mNoTapeTopClosedBotOpenNoShoes.dispose();
+        if (mNoTapeTopOpenKit != null)
+            mNoTapeTopOpenKit.dispose();
+        if (mNoTapeTopOpenNoKit != null)
+            mNoTapeTopOpenNoKit.dispose();
+        if (mNoTapeTopOpenNoKitBotOpen != null)
+            mNoTapeTopOpenNoKitBotOpen.dispose();
         pixelTexture.dispose();
+        if (backButtonTexture != null)
+            backButtonTexture.dispose();
         textPanel.dispose();
         awarenessMeter.dispose();
         actionBar.dispose();

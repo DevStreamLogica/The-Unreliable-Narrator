@@ -86,6 +86,25 @@ public class HintSystem {
     }
 
     private String getWatchTapeHint(int tier) {
+        // Guide player through the unlock chain if they're stuck
+        if (!state.isUnlockedTape(Tape.TAPE_MARGARET_INTERVIEW)) {
+            return "The argument recording found in Harold's study holds the first key. Watch it to unlock the next tape.";
+        }
+        if (!state.isUnlockedTape(Tape.TAPE_MARCUS_INTERVIEW)) {
+            return "Margaret Vance's police interview points toward another suspect.";
+        }
+        if (!state.isUnlockedTape(Tape.TAPE_CHARLES_INTERVIEW)) {
+            return "Marcus Blackwood noticed something as he left. His interview holds a lead.";
+        }
+        if (!state.isUnlockedTape(Tape.TAPE_JAMES_INTERVIEW)) {
+            if (!state.hasLearnedCode("ESTATE-42")) {
+                return "Harold's legal documents may contain something useful.";
+            }
+            return "Charles Webb placed someone at the study door. Find his account.";
+        }
+        if (!state.isUnlockedTape(Tape.TAPE_MARGARET_ACCOUNT)) {
+            return "You need to hear from both James and Daniel before Margaret will speak fully.";
+        }
         switch (tier) {
             case 0:
                 return "You have unwatched tapes. They contain crucial information.";
@@ -106,15 +125,16 @@ public class HintSystem {
             case 0:
                 return "You need more evidence. Keep examining objects and interviewing suspects.";
             case 1:
-                return "Evidence against James: " + jCount + "/6 found (need 3 to accuse). Evidence against Daniel: " + dCount + "/4 found (need 2 to accuse). " +
+                return "Evidence against James: " + jCount + "/7 found (need 3 to accuse). Evidence against Daniel: " + dCount + "/4 found (need 2 to accuse). " +
                        "Try rooms you haven't fully explored.";
             default:
                 StringBuilder sb = new StringBuilder();
                 sb.append("Evidence needed:\n");
-                sb.append("Against James (have ").append(jCount).append("/6): ");
+                sb.append("Against James (have ").append(jCount).append("/7): ");
                 if (!state.hasEvidence(Evidence.FINANCIAL_RECORDS)) sb.append("Financial Records (Study drawers), ");
                 if (!state.hasEvidence(Evidence.WILL_COPY)) sb.append("Will Copy (Parlor briefcase), ");
                 if (!state.hasEvidence(Evidence.TORN_LETTER)) sb.append("Torn Letter (Study fireplace ashes), ");
+                if (!state.hasEvidence(Evidence.FIREPLACE_POKER)) sb.append("Fireplace Poker (Study poker, 2nd exam), ");
                 if (!state.hasTape(Tape.TAPE_ARGUMENT)) sb.append("Tape: Argument (Study under_desk), ");
                 if (!state.hasTape(Tape.TAPE_JAMES_INTERVIEW)) sb.append("Tape: James Interview (Study bookshelves), ");
                 if (!state.hasEvidence(Evidence.BLACKMAIL_NOTE)) sb.append("Blackmail Note (Margaret's Room letter), ");
@@ -122,7 +142,7 @@ public class HintSystem {
                 if (!state.hasEvidence(Evidence.GROUNDSKEEPER_LOG)) sb.append("Groundskeeper Log (Shed logbook), ");
                 if (!state.hasEvidence(Evidence.MUDDY_BOOTS)) sb.append("Muddy Boots (Shed shelf, 2nd exam), ");
                 if (!state.hasTape(Tape.TAPE_DANIEL_INTERVIEW)) sb.append("Tape: Daniel Interview (Shed logbook), ");
-                if (!state.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) sb.append("Tape: Margaret Interview (Kitchen storage_cellar), ");
+                if (!state.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) sb.append("Tape: Margaret Interview (Kitchen: Under the Counter), ");
                 return sb.toString();
         }
     }
@@ -134,7 +154,7 @@ public class HintSystem {
             case 1:
                 return "Click ACCUSE in the action bar. Think about who worked together.";
             default:
-                return "Click ACCUSE and select 'James & Daniel (together)'. They conspired to kill Harold before he could change the will.";
+                return "You need evidence of who committed the murder AND who helped cover it up. Check the cellar thoroughly and re-examine the groundskeeper's shed.";
         }
     }
 

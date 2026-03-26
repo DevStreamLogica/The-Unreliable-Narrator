@@ -14,36 +14,46 @@ public class ExamResult {
     private final Evidence evidence;  // nullable
     private final Tape tape;          // nullable
     private final MiniGameType miniGame;
+    private final boolean grantsRepairSolution;
 
     public ExamResult(String text) {
-        this(text, null, null, MiniGameType.NONE);
+        this(text, null, null, MiniGameType.NONE, false);
     }
 
     public ExamResult(String text, Evidence evidence) {
-        this(text, evidence, null, MiniGameType.NONE);
+        this(text, evidence, null, MiniGameType.NONE, false);
     }
 
     public ExamResult(String text, Tape tape) {
-        this(text, null, tape, MiniGameType.NONE);
+        this(text, null, tape, MiniGameType.NONE, false);
     }
 
     public ExamResult(String text, Evidence evidence, Tape tape) {
-        this(text, evidence, tape, MiniGameType.NONE);
+        this(text, evidence, tape, MiniGameType.NONE, false);
     }
 
     public ExamResult(String text, MiniGameType miniGame) {
-        this(text, null, null, miniGame);
+        this(text, null, null, miniGame, false);
     }
 
     public ExamResult(String text, Evidence evidence, MiniGameType miniGame) {
-        this(text, evidence, null, miniGame);
+        this(text, evidence, null, miniGame, false);
     }
 
     public ExamResult(String text, Evidence evidence, Tape tape, MiniGameType miniGame) {
+        this(text, evidence, tape, miniGame, false);
+    }
+
+    private ExamResult(String text, Evidence evidence, Tape tape, MiniGameType miniGame, boolean grantsRepairSolution) {
         this.text = text;
         this.evidence = evidence;
         this.tape = tape;
         this.miniGame = miniGame;
+        this.grantsRepairSolution = grantsRepairSolution;
+    }
+
+    public static ExamResult withRepairSolution(String text) {
+        return new ExamResult(text, null, null, MiniGameType.NONE, true);
     }
 
     public String getText() { return text; }
@@ -53,4 +63,5 @@ public class ExamResult {
     public boolean hasEvidence() { return evidence != null; }
     public boolean hasTape() { return tape != null; }
     public boolean hasMiniGame() { return miniGame != MiniGameType.NONE; }
+    public boolean grantsRepairSolution() { return grantsRepairSolution; }
 }

@@ -4,11 +4,13 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.dsa.game.screens.EscapeScreen;
 import com.dsa.game.screens.TitleScreen;
 
 public class DSAGame extends Game {
     public static final int SCREEN_WIDTH = 1280;
     public static final int SCREEN_HEIGHT = 720;
+    public static boolean startInEscapeMode = false;
 
     public SpriteBatch batch;
     public OrthographicCamera camera;
@@ -23,7 +25,7 @@ public class DSAGame extends Game {
         camera.update();
 
         batch = new SpriteBatch();
-        setScreen(new TitleScreen(this));
+        setScreen(startInEscapeMode ? new EscapeScreen(this) : new TitleScreen(this));
     }
 
     @Override

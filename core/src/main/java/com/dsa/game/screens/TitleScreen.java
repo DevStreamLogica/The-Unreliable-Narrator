@@ -252,7 +252,7 @@ public class TitleScreen implements Screen {
                     }
                     return true;
                 }
-                if (keycode == Input.Keys.ENTER) {
+                if (keycode == Input.Keys.ENTER && !textPanel.isVisible()) {
                     startNewGame();
                     return true;
                 }
@@ -285,7 +285,7 @@ public class TitleScreen implements Screen {
     }
 
     private void startNewGame() {
-        game.setScreen(new GameScreen(game));
+        game.setScreen(new IntroScreen(game));
     }
 
     private void showLoadPanel() {
