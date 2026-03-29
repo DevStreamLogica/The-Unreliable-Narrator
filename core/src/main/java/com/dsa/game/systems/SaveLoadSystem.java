@@ -50,7 +50,6 @@ public class SaveLoadSystem {
         public List<String> narratorDistortions = new ArrayList<>();
         public int wrongAccusationCount;
         public String chosenEnding = "NONE";
-        public boolean hasTapeRepairKit;
         public boolean margaretTopOpen;
         public boolean margaretBotOpen;
         public boolean margaretShoesExamined;
@@ -58,8 +57,6 @@ public class SaveLoadSystem {
         // Tape progression system
         public List<String> unlockedTapes = new ArrayList<>();
         public List<String> learnedCodes = new ArrayList<>();
-        public List<String> repairedTapes = new ArrayList<>();
-        public int repairSolutionsRemaining = 0;
 
         // Achievement persistence
         public List<String> unlockedAchievements = new ArrayList<>();
@@ -120,7 +117,6 @@ public class SaveLoadSystem {
         data.narratorDistortions.addAll(state.getNarratorDistortions());
         data.wrongAccusationCount = state.getWrongAccusationCount();
         data.chosenEnding = state.getChosenEnding().name();
-        data.hasTapeRepairKit = state.hasTapeRepairKit();
         data.margaretTopOpen = state.isMargaretTopOpen();
         data.margaretBotOpen = state.isMargaretBotOpen();
         data.margaretShoesExamined = state.isMargaretShoesExamined();
@@ -130,10 +126,6 @@ public class SaveLoadSystem {
             data.unlockedTapes.add(t.name());
         }
         data.learnedCodes.addAll(state.getLearnedCodes());
-        for (Tape t : state.getRepairedTapes()) {
-            data.repairedTapes.add(t.name());
-        }
-        data.repairSolutionsRemaining = state.getRepairSolutionsRemaining();
 
         for (Achievement a : state.getUnlockedAchievements()) {
             data.unlockedAchievements.add(a.name());
@@ -233,7 +225,6 @@ public class SaveLoadSystem {
             if (data.chosenEnding != null) {
                 state.setChosenEndingByName(data.chosenEnding);
             }
-            state.setHasTapeRepairKit(data.hasTapeRepairKit);
             state.setMargaretTopOpen(data.margaretTopOpen);
             state.setMargaretBotOpen(data.margaretBotOpen);
             state.setMargaretShoesExamined(data.margaretShoesExamined);
@@ -249,13 +240,6 @@ public class SaveLoadSystem {
                     state.forceLearnCode(code);
                 }
             }
-            if (data.repairedTapes != null) {
-                for (String name : data.repairedTapes) {
-                    state.forceRepairTape(Tape.valueOf(name));
-                }
-            }
-            state.setRepairSolutionsRemaining(data.repairSolutionsRemaining);
-
             if (data.unlockedAchievements != null) {
                 for (String name : data.unlockedAchievements) {
                     try {

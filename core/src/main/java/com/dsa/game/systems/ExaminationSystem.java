@@ -86,8 +86,6 @@ public class ExaminationSystem {
                 if (count == 1) return new ExamResult(
                     "Sifting through the ashes carefully, you find fragments of a burned letter. The pieces are scattered but might be reconstructed...",
                     ExamResult.MiniGameType.TORN_LETTER_RECONSTRUCTION);
-                if (count == 2) return ExamResult.withRepairSolution(
-                    "Sifting deeper through the ashes beneath where the letter fragments were, your fingers close on something solid -- a small roll of splicing tape and a metal splicer, heat-blackened but intact. Investigation tools, hidden in the one place no one would search twice.\n\n[Tape repair solution acquired.]");
                 return new ExamResult("The fireplace ashes. You've found everything hidden here.");
 
             case "under_desk":
@@ -130,9 +128,9 @@ public class ExaminationSystem {
                 return new ExamResult("The narrow door leading down to the cellar storage.");
 
             case "flour_tin":
-                if (count == 1) return ExamResult.withRepairSolution(
-                    "A battered flour tin on the kitchen shelf. Lifting the lid: beneath a false bottom, wrapped in cloth, more splicing equipment. Someone hid investigation tools throughout the manor.\n\n[Tape repair solution acquired.]");
-                return new ExamResult("The flour tin. You already retrieved the tape repair equipment from inside.");
+                if (count == 1) return new ExamResult(
+                    "A battered flour tin on the kitchen shelf. Lifting the lid: beneath a false bottom, wrapped in cloth, a bundle of old correspondence. Letters between Harold and an unknown party. Nothing conclusive, but someone hid them deliberately.");
+                return new ExamResult("The flour tin. You already searched it.");
 
             case "kitchen_floor":
                 if (count == 1) return new ExamResult(
@@ -219,9 +217,9 @@ public class ExaminationSystem {
                 return new ExamResult("The worn bedpost. The 'A.H.' initials carved into the wood.");
 
             case "drawer":
-                if (count == 1) return ExamResult.withRepairSolution(
-                    "A small wooden nightstand between the beds. On top, a blue canvas pouch -- tape splicing scissors, adhesive strips, and a manual splicer. Someone left this here deliberately.\n\n[Tape repair solution acquired.]");
-                return new ExamResult("The nightstand. Arthur's blue investigation pouch is already in your possession.");
+                if (count == 1) return new ExamResult(
+                    "A small wooden nightstand between the beds. The drawer contains a worn notebook -- pages of observations in cramped handwriting. The last entry reads: 'The narrator knows I'm here. I don't have much time.'");
+                return new ExamResult("The nightstand. The notebook with its ominous final entry.");
 
             default:
                 return new ExamResult("Nothing noteworthy here.");
@@ -244,16 +242,14 @@ public class ExaminationSystem {
                 if (count == 1) return new ExamResult(
                     "Flour sacks stacked against the wall. The floor around them has been recently disturbed -- drag marks in the dust. Reaching behind the sacks, your hand closes on bundled fabric. A shirt, hastily hidden. The right cuff is stained dark with blood. Why hide it instead of burning it? The cellar was dark, fast to reach from the study, and easily locked from the inside. Whoever hid this was thinking quickly.",
                     Evidence.BLOODSTAINED_CUFF);
-                if (count == 2) return ExamResult.withRepairSolution(
-                    "Moving the flour sacks fully aside, behind where the shirt was hidden: a small leather roll of tape splicing tools. Arthur made it this far into the cellar. He prepared for what he might find.\n\n[Tape repair solution acquired.]");
                 return new ExamResult("The flour sacks. You've searched behind them thoroughly.");
 
             case "wine_rack":
                 if (count == 1) return new ExamResult(
                     "Wine racks from floor to ceiling. Most bottles are dusty, but one section has been recently disturbed. Behind the bottles, taped to the wall: another tape recorder.\n\n" +
-                    "But this one is damaged. The casing is cracked, the tape ribbon inside snapped and tangled. " +
+                    "The casing is cracked, the tape ribbon inside tangled and fragile. " +
                     "Someone -- or something -- tried to destroy this recording. " +
-                    "You'll need tape splicing equipment to repair it before you can listen.",
+                    "Somehow, it still plays.",
                     Tape.TAPE_ARTHUR_DEATH);
                 if (count == 2) {
                     state.discoverAnomaly(EntityAnomaly.BREATHING_WALL);

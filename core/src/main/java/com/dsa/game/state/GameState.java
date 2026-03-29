@@ -61,19 +61,14 @@ public class GameState {
     // Wrong accusation count (Feature 4)
     private int wrongAccusationCount = 0;
 
-    // Tape repair kit (Act 3 gate)
-    private boolean hasTapeRepairKit = false;
-
     // Margaret's room drawer state
     private boolean margaretTopOpen = false;
     private boolean margaretBotOpen = false;
     private boolean margaretShoesExamined = false;
 
-    // Tape progression system (Option 2)
+    // Tape progression system
     private final Set<Tape> unlockedTapes = new LinkedHashSet<>();
     private final Set<String> learnedCodes = new LinkedHashSet<>();
-    private final Set<Tape> repairedTapes = new LinkedHashSet<>();
-    private int repairSolutionsRemaining = 0;
 
     // Minigame score (0–200, stored after each minigame)
     private int lastMinigameScore = 0;
@@ -208,10 +203,6 @@ public class GameState {
     public int getWrongAccusationCount() { return wrongAccusationCount; }
     public void incrementWrongAccusationCount() { wrongAccusationCount++; }
 
-    // Tape repair kit
-    public boolean hasTapeRepairKit() { return hasTapeRepairKit; }
-    public void setHasTapeRepairKit(boolean value) { hasTapeRepairKit = value; }
-
     // Margaret's room drawer state
     public boolean isMargaretTopOpen() { return margaretTopOpen; }
     public void setMargaretTopOpen(boolean value) { margaretTopOpen = value; }
@@ -225,23 +216,11 @@ public class GameState {
     public boolean isUnlockedTape(Tape t) { return t == Tape.TAPE_ARGUMENT || unlockedTapes.contains(t); }
     public void learnCode(String code) { learnedCodes.add(code); }
     public boolean hasLearnedCode(String code) { return learnedCodes.contains(code); }
-    public void addRepairSolution() { repairSolutionsRemaining++; }
-    public boolean useRepairSolution(Tape t) {
-        if (repairSolutionsRemaining <= 0) return false;
-        repairSolutionsRemaining--;
-        repairedTapes.add(t);
-        return true;
-    }
-    public boolean isTapeRepaired(Tape t) { return repairedTapes.contains(t); }
-    public int getRepairSolutionsRemaining() { return repairSolutionsRemaining; }
     public Set<Tape> getUnlockedTapes() { return Collections.unmodifiableSet(unlockedTapes); }
     public Set<String> getLearnedCodes() { return Collections.unmodifiableSet(learnedCodes); }
-    public Set<Tape> getRepairedTapes() { return Collections.unmodifiableSet(repairedTapes); }
     // Force-setters for SaveLoadSystem
     public void forceUnlockTape(Tape t) { unlockedTapes.add(t); }
     public void forceLearnCode(String c) { learnedCodes.add(c); }
-    public void forceRepairTape(Tape t) { repairedTapes.add(t); }
-    public void setRepairSolutionsRemaining(int n) { repairSolutionsRemaining = n; }
 
     // Ending
     public Ending getChosenEnding() { return chosenEnding; }
@@ -283,15 +262,12 @@ public class GameState {
         receivedLies.clear();
         narratorDistortions.clear();
         wrongAccusationCount = 0;
-        hasTapeRepairKit = false;
         margaretTopOpen = false;
         margaretBotOpen = false;
         margaretShoesExamined = false;
         chosenEnding = Ending.NONE;
         unlockedTapes.clear();
         learnedCodes.clear();
-        repairedTapes.clear();
-        repairSolutionsRemaining = 0;
         for (Suspect s : Suspect.values()) {
             cooperation.put(s, s.getStartingCooperation());
         }

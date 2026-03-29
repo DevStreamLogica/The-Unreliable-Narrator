@@ -33,10 +33,12 @@ public class TitleScreen implements Screen {
     private GlyphLayout layout;
 
     private Texture backgroundTexture;
+    private Texture highlightTexture;
     private boolean usingImageBackground = false;
     private SaveLoadSystem saveLoadSystem;
     private TextPanel textPanel;
     private final Vector2 touchPos = new Vector2();
+    private String hoveredAction = null;
 
     // Menu buttons (only used for procedural background)
     private TextButton newGameButton;
@@ -85,6 +87,12 @@ public class TitleScreen implements Screen {
 
         this.saveLoadSystem = new SaveLoadSystem();
         this.textPanel = new TextPanel();
+
+        Pixmap hp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        hp.setColor(1f, 1f, 1f, 1f);
+        hp.fill();
+        highlightTexture = new Texture(hp);
+        hp.dispose();
 
         generateBackground();
         createButtons();
@@ -232,7 +240,15 @@ public class TitleScreen implements Screen {
                     return false;
                 }
 
-                if (!usingImageBackground) {
+                if (usingImageBackground) {
+                    hoveredAction = null;
+                    for (ClickRegion region : clickRegions) {
+                        if (region.contains(gameX, gameY)) {
+                            hoveredAction = region.action;
+                            break;
+                        }
+                    }
+                } else {
                     newGameButton.checkHover(gameX, gameY);
                     loadGameButton.checkHover(gameX, gameY);
                     settingsButton.checkHover(gameX, gameY);
@@ -376,6 +392,28 @@ public class TitleScreen implements Screen {
 
         batch.draw(backgroundTexture, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
 
+        if (usingImageBackground && hoveredAction != null && !textPanel.isVisible()) {
+            for (ClickRegion region : clickRegions) {
+                if (region.action.equals(hoveredAction)) {
+                    float bx = region.x, by = region.y, bw = region.width, bh = region.height;
+                    float bord = 2f;
+
+                    // Semi-transparent fill
+                    batch.setColor(0.95f, 0.90f, 0.65f, 0.22f);
+                    batch.draw(highlightTexture, bx, by, bw, bh);
+
+                    // Bright gold border on all four edges
+                    batch.setColor(0.95f, 0.85f, 0.40f, 0.90f);
+                    batch.draw(highlightTexture, bx,            by + bh - bord, bw,   bord); // top
+                    batch.draw(highlightTexture, bx,            by,             bw,   bord); // bottom
+                    batch.draw(highlightTexture, bx,            by,             bord, bh);   // left
+                    batch.draw(highlightTexture, bx + bw - bord, by,            bord, bh);   // right
+
+                    batch.setColor(Color.WHITE);
+                }
+            }
+        }
+
         if (!usingImageBackground) {
             String title = "The Unreliable Narrator";
             layout.setText(titleFont, title);
@@ -431,6 +469,8 @@ public class TitleScreen implements Screen {
         font.dispose();
         if (backgroundTexture != null)
             backgroundTexture.dispose();
+        if (highlightTexture != null)
+            highlightTexture.dispose();
         textPanel.dispose();
     }
 }

@@ -94,14 +94,14 @@ public class RoomManager {
 
                 Hotspot studyBack = HotspotPositions.createStandardHotspot(
                                 Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.ENTRANCE);
-                studyBack.setTooltip("Go back");
+                studyBack.setTooltip("");
                 study.addHotspot(studyBack);
 
                 parlor.addConnection(Direction.EAST, Room.RoomID.ENTRANCE);
 
                 Hotspot parlorBack = HotspotPositions.createStandardHotspot(
                                 Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.ENTRANCE);
-                parlorBack.setTooltip("Go back");
+                parlorBack.setTooltip("");
                 parlor.addHotspot(parlorBack);
 
                 kitchen.addConnection(Direction.SOUTH, Room.RoomID.ENTRANCE);
@@ -112,7 +112,7 @@ public class RoomManager {
                                 Room.RoomID.ENTRANCE);
                 kitchenBackArrow.setBounds(HotspotPositions.BACK_BTN_X, HotspotPositions.BACK_BTN_Y,
                                 HotspotPositions.BACK_BTN_W, HotspotPositions.BACK_BTN_H);
-                kitchenBackArrow.setTooltip("Go back");
+                kitchenBackArrow.setTooltip("");
                 kitchen.addHotspot(kitchenBackArrow);
 
                 Hotspot servantsArrow = new Hotspot(Hotspot.HotspotType.ARROW_LEFT, Direction.WEST,
@@ -146,21 +146,18 @@ public class RoomManager {
                 jamesRoom.addHotspot(jamesExit);
                 Hotspot jamesBack = HotspotPositions.createStandardHotspot(
                                 Hotspot.HotspotType.ARROW_BACK, Direction.WEST, Room.RoomID.GUEST_ROOMS);
-                jamesBack.setTooltip("Go back");
+                jamesBack.setTooltip("");
                 jamesRoom.addHotspot(jamesBack);
 
                 margaretRoom.addConnection(Direction.EAST, Room.RoomID.GUEST_ROOMS);
                 Hotspot margaretBack = HotspotPositions.createStandardHotspot(
                                 Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.GUEST_ROOMS);
-                margaretBack.setTooltip("Go back");
+                margaretBack.setTooltip("");
                 margaretRoom.addHotspot(margaretBack);
 
                 shed.addConnection(Direction.EAST, Room.RoomID.SERVANTS_QUARTERS);
 
-                Hotspot shedBack = HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.SERVANTS_QUARTERS);
-                shedBack.setTooltip("Go back");
-                shed.addHotspot(shedBack);
+                // Shed: visible door only, no back button
                 Hotspot shedServantsDoor = new Hotspot(Hotspot.HotspotType.DOOR, Direction.EAST,
                                 Room.RoomID.SERVANTS_QUARTERS);
                 shedServantsDoor.setBounds(1100, 111, 125, 429);
@@ -169,18 +166,25 @@ public class RoomManager {
                 servants.addConnection(Direction.EAST, Room.RoomID.KITCHEN);
                 servants.addConnection(Direction.WEST, Room.RoomID.GROUNDSKEEPER_SHED);
 
-                Hotspot servantsBack = HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.EAST, Room.RoomID.KITCHEN);
-                servantsBack.setTooltip("Go back");
-                servants.addHotspot(servantsBack);
+                // Servants quarters: visible door to kitchen on right, visible door to shed on left
+                Hotspot kitchenDoorFromServants = new Hotspot(Hotspot.HotspotType.DOOR, Direction.EAST,
+                                Room.RoomID.KITCHEN);
+                kitchenDoorFromServants.setBounds(895, 560, 184, 98);
+                kitchenDoorFromServants.setTooltip("Kitchen");
+                servants.addHotspot(kitchenDoorFromServants);
                 Hotspot shedDoor = new Hotspot(Hotspot.HotspotType.DOOR, Direction.WEST,
                                 Room.RoomID.GROUNDSKEEPER_SHED);
                 shedDoor.setBounds(55, 111, 125, 429);
                 servants.addHotspot(shedDoor);
+
                 cellar.addConnection(Direction.UP, Room.RoomID.KITCHEN);
 
-                cellar.addHotspot(HotspotPositions.createStandardHotspot(
-                                Hotspot.HotspotType.ARROW_BACK, Direction.UP, Room.RoomID.KITCHEN));
+                // Cellar: visible stairs hotspot, no back button
+                Hotspot cellarStairsUp = new Hotspot(Hotspot.HotspotType.STAIRS_UP, Direction.UP,
+                                Room.RoomID.KITCHEN);
+                cellarStairsUp.setBounds(1023, 103, 214, 392);
+                cellarStairsUp.setTooltip("Go upstairs");
+                cellar.addHotspot(cellarStairsUp);
         }
 
         private void setupExamineHotspots() {

@@ -6,6 +6,7 @@ import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.math.Vector2;
 import com.dsa.game.DSAGame;
@@ -13,7 +14,9 @@ import com.dsa.game.ui.TextButton;
 import com.dsa.game.ui.TextPanel;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class DinnerCutsceneScreen implements Screen {
 
@@ -60,10 +63,30 @@ public class DinnerCutsceneScreen implements Screen {
         "The police called it an accident.{P}\n\n" +
         "It wasn't.{P}";
 
+    // Portrait shown per page (narration focuses on each character in turn)
+    private static final String[] PAGE_PORTRAITS = {
+        null,                          // [November 15th, 1987...]
+        "Harold Vance",                // "You'll accept the terms."
+        "Marcus Blackwood",            // "Of course. We'll review them."
+        "Margaret Vance",              // "James." — Margaret reaching out
+        "James Vance",                 // James staring at his plate
+        "Charles Webb",                // "More wine, sir?"
+        "Harold Vance",                // Harold talking about courts
+        "Daniel the Groundskeeper",    // lantern on the grounds
+        null,                          // The clock reads quarter past seven
+        null,                          // ---
+        null,                          // The following morning...
+        null,                          // The police called it an accident
+        null,                          // It wasn't.
+    };
+
     private final DSAGame game;
     private final BitmapFont font;
     private final TextPanel textPanel;
     private final Vector2 touchPos = new Vector2();
+    private final Map<String, Texture> portraitTextures = new HashMap<>();
+    private Texture currentPortrait = null;
+    private float portraitAlpha = 0f;
 
     public DinnerCutsceneScreen(DSAGame game) {
         this.game = game;
@@ -74,9 +97,25 @@ public class DinnerCutsceneScreen implements Screen {
 
         this.textPanel = new TextPanel();
 
+        String[][] mapping = {
+            { "Harold Vance",             "characters/harold.png"  },
+            { "James Vance",              "characters/james.png"   },
+            { "Margaret Vance",           "characters/margaret.png"},
+            { "Marcus Blackwood",         "characters/marcus.png"  },
+            { "Charles Webb",             "characters/charles.png" },
+            { "Daniel the Groundskeeper", "characters/daniel.png"  },
+        };
+        for (String[] e : mapping) {
+            try {
+                Texture tex = new Texture(Gdx.files.internal(e[1]));
+                tex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                portraitTextures.put(e[0], tex);
+            } catch (Exception ex) { /* skip missing */ }
+        }
+
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Begin investigation.", 0, 0, 200, 40, "begin_game"));
-        textPanel.showButtons(DINNER_TEXT, buttons);
+        textPanel.showDialogue(null, DINNER_TEXT, buttons);
 
         setupInput();
     }
@@ -88,7 +127,9 @@ public class DinnerCutsceneScreen implements Screen {
                 touchPos.set(screenX, screenY);
                 game.viewport.unproject(touchPos);
                 String action = textPanel.handleClick(touchPos.x, touchPos.y);
-                if ("begin_game".equals(action) || "close".equals(action)) {
+                if ("next_page".equals(action)) {
+                    textPanel.nextPage();
+                } else if ("begin_game".equals(action) || "close".equals(action)) {
                     game.setScreen(new GameScreen(game));
                 }
                 return true;
@@ -123,12 +164,29 @@ public class DinnerCutsceneScreen implements Screen {
     public void render(float delta) {
         textPanel.update(delta);
 
+        // Resolve portrait for current page
+        int page = textPanel.getCurrentPage();
+        String portraitName = (page >= 0 && page < PAGE_PORTRAITS.length) ? PAGE_PORTRAITS[page] : null;
+        Texture target = (portraitName != null) ? portraitTextures.get(portraitName) : null;
+        if (target != currentPortrait) { currentPortrait = target; portraitAlpha = 0f; }
+        float targetAlpha = (currentPortrait != null) ? 1f : 0f;
+        portraitAlpha += (targetAlpha - portraitAlpha) * Math.min(1f, delta * 8f);
+
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         game.viewport.apply();
         game.batch.setProjectionMatrix(game.camera.combined);
         game.batch.begin();
+
+        if (currentPortrait != null && portraitAlpha > 0.01f) {
+            float ph = 560f;
+            float pw = ph * currentPortrait.getWidth() / (float) currentPortrait.getHeight();
+            game.batch.setColor(1f, 1f, 1f, portraitAlpha);
+            game.batch.draw(currentPortrait, 40f, 0f, pw, ph);
+            game.batch.setColor(Color.WHITE);
+        }
+
         textPanel.render(game.batch, font);
         game.batch.end();
     }
@@ -143,5 +201,6 @@ public class DinnerCutsceneScreen implements Screen {
     public void dispose() {
         font.dispose();
         textPanel.dispose();
+        for (Texture tex : portraitTextures.values()) tex.dispose();
     }
 }

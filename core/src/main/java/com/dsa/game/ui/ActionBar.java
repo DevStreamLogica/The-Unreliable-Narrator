@@ -37,7 +37,7 @@ public class ActionBar {
         String[] actions = {"inventory"};
 
         clusterWidth = labels.length * BUTTON_WIDTH + (labels.length - 1) * BUTTON_MARGIN;
-        clusterX = (DSAGame.SCREEN_WIDTH - clusterWidth) / 2;
+        clusterX = BUTTON_MARGIN;
 
         for (int i = 0; i < labels.length; i++) {
             float x = clusterX + i * (BUTTON_WIDTH + BUTTON_MARGIN);

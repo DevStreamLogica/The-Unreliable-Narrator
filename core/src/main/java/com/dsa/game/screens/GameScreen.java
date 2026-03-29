@@ -62,7 +62,6 @@ public class GameScreen implements Screen {
     private Texture mNoTapeTopOpenNoKit;
     private Texture mNoTapeTopOpenNoKitBotOpen;
     private Texture pixelTexture;
-    private Texture backButtonTexture;
 
     private String currentTooltip = "";
     private GlyphLayout layout;
@@ -90,6 +89,43 @@ public class GameScreen implements Screen {
     private AwarenessMeter awarenessMeter;
     private ActionBar actionBar;
     private DocumentReconstructionGame documentGame;
+
+    // Pop-up notification system (upper-right, 5 seconds)
+    private final java.util.Queue<String> notifQueue = new java.util.LinkedList<>();
+    private String currentNotif = null;
+    private float notifTimer = 0f;
+    private static final float NOTIF_DURATION = 5f;
+
+    // Room transition fade
+    private float transitionAlpha = 0f;
+    private boolean transitionFadingOut = false;
+    private boolean transitionFadingIn = false;
+    private static final float TRANSITION_SPEED = 5.0f; // reaches 1.0 in 0.2s
+    private Runnable pendingTransition = null;
+
+    // Back button texture
+    private Texture backButtonTex;
+
+    // Character portraits — two-portrait VN system (left / right)
+    private Map<String, Texture> portraitTextures;
+    private Texture leftPortrait  = null, rightPortrait  = null;
+    private String  leftSpeaker   = null, rightSpeaker   = null;
+    private float   leftAlpha     = 0f,   rightAlpha     = 0f;
+    private boolean leftIsActive  = true; // which side is currently speaking
+
+    // Maps tape line labels (e.g. "JAMES") to full speaker names for portrait lookup
+    private static final Map<String, String> TAPE_LABEL_MAP = new java.util.HashMap<>();
+    static {
+        TAPE_LABEL_MAP.put("JAMES",              "James Vance");
+        TAPE_LABEL_MAP.put("MARGARET",           "Margaret Vance");
+        TAPE_LABEL_MAP.put("DANIEL",             "Daniel the Groundskeeper");
+        TAPE_LABEL_MAP.put("MARCUS",             "Marcus Blackwood");
+        TAPE_LABEL_MAP.put("CHARLES",            "Charles Webb");
+        TAPE_LABEL_MAP.put("ARTHUR",             "Arthur Hollis");
+        TAPE_LABEL_MAP.put("MORRISON",           "Detective Morrison");
+        TAPE_LABEL_MAP.put("DETECTIVE MORRISON", "Detective Morrison");
+        TAPE_LABEL_MAP.put("HAROLD",             "Harold Vance");
+    }
 
     // Panel mode tracking
     private enum PanelMode {
@@ -154,6 +190,9 @@ public class GameScreen implements Screen {
         // Generate textures
         generatePlaceholderTextures();
         generateUITextures();
+        loadPortraits();
+        backButtonTex = new Texture(Gdx.files.internal("art/Visual Characters/back.png"));
+        backButtonTex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         // Initialize UI components
         textPanel = new TextPanel();
@@ -232,7 +271,41 @@ public class GameScreen implements Screen {
         p.fill();
         pixelTexture = new Texture(p);
         p.dispose();
-        backButtonTexture = new Texture(Gdx.files.internal("back.png"));
+    }
+
+    /** Parses "JAMES: ..." or "JAMES (pause): ..." → "James Vance". Returns null if no known label. */
+    private String detectPageSpeaker(String pageText) {
+        if (pageText == null) return null;
+        int colon = pageText.indexOf(':');
+        if (colon <= 0 || colon > 30) return null;
+        String label = pageText.substring(0, colon).trim().toUpperCase();
+        // Strip parentheticals: "JAMES (pause)" → "JAMES"
+        int paren = label.indexOf('(');
+        if (paren > 0) label = label.substring(0, paren).trim();
+        return TAPE_LABEL_MAP.get(label);
+    }
+
+    private void loadPortraits() {
+        portraitTextures = new HashMap<>();
+        String[][] mapping = {
+            { "James Vance",               "characters/james.png"    },
+            { "Margaret Vance",            "characters/margaret.png" },
+            { "Charles Webb",              "characters/charles.png"  },
+            { "Daniel the Groundskeeper",  "characters/daniel.png"   },
+            { "Arthur Hollis",             "characters/arthur.png"   },
+            { "Marcus Blackwood",          "characters/marcus.png"      },
+            { "Detective Morrison",        "characters/morrison.png"    },
+            { "Harold Vance",             "characters/harold.png"      },
+        };
+        for (String[] entry : mapping) {
+            try {
+                Texture tex = new Texture(Gdx.files.internal(entry[1]));
+                tex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                portraitTextures.put(entry[0], tex);
+            } catch (Exception e) {
+                Gdx.app.error("Portrait", "Failed to load " + entry[1] + ": " + e.getMessage());
+            }
+        }
     }
 
     private void setupInput() {
@@ -245,7 +318,6 @@ public class GameScreen implements Screen {
                 viewport.unproject(touchPos);
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
-
                 // Allow text panel interaction even after game over/won
                 if (textPanel.isVisible()) {
                     String action = textPanel.handleClick(gameX, gameY);
@@ -340,8 +412,21 @@ public class GameScreen implements Screen {
                 actionBar.handleHover(gameX, gameY);
                 awarenessMeter.handleHover(gameY);
 
+                boolean overHotspot = false;
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
                     hotspot.checkHover(gameX, gameY);
+                    if (hotspot.isHovered()) {
+                        currentTooltip = hotspot.getTooltip();
+                        overHotspot = true;
+                        if (hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
+                            Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Hand);
+                        } else {
+                            Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
+                        }
+                    }
+                }
+                if (!overHotspot) {
+                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
                 }
                 return false;
             }
@@ -440,6 +525,13 @@ public class GameScreen implements Screen {
 
     // --- Navigation ---
 
+    private void navigateWithFade(Runnable onMidpoint) {
+        transitionFadingOut = true;
+        transitionFadingIn = false;
+        transitionAlpha = 0f;
+        pendingTransition = onMidpoint;
+    }
+
     private void navigateByDirection(Direction dir) {
         if (roomManager.getCurrentRoom().hasConnection(dir)) {
             handleNavigation(roomManager.getCurrentRoom().getConnection(dir));
@@ -474,10 +566,10 @@ public class GameScreen implements Screen {
                     narratorLine = "\"NO! Stay AWAY from the cellar! You don't understand what's down there! I mean... it's irrelevant. Completely irrelevant.\"";
                     break;
             }
-            textPanel.show("THE CELLAR\n\nThe door to the cellar won't budge. The handle is ice-cold " +
+            textPanel.showDialogue("The Narrator", "THE CELLAR\n\nThe door to the cellar won't budge. The handle is ice-cold " +
                     "to the touch, far colder than it should be. Something below is keeping this door sealed.\n\n" +
                     narratorLine + "\n\n" +
-                    "[Continue investigating. Gather more evidence and testimony.]");
+                    "[Continue investigating. Gather more evidence and testimony.]", new ArrayList<>());
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -498,47 +590,48 @@ public class GameScreen implements Screen {
                     narratorLine = "\"THE DOOR IS SEALED! Can't you feel the cold? Whatever is behind that door, they don't -- I mean, there's no reason to go in there!\"";
                     break;
             }
-            textPanel.show("MARGARET'S ROOM\n\nThe door is sealed shut. Not locked -- sealed. " +
+            textPanel.showDialogue("The Narrator", "MARGARET'S ROOM\n\nThe door is sealed shut. Not locked -- sealed. " +
                     "The wood is unnaturally cold. Frost traces the edges of the frame despite the warm hallway.\n\n" +
                     narratorLine + "\n\n" +
-                    "[Something holds this door shut. Perhaps deeper investigation will change that.]");
+                    "[Something holds this door shut. Perhaps deeper investigation will change that.]", new ArrayList<>());
             panelMode = PanelMode.TEXT;
             return;
         }
 
-        roomManager.navigateTo(target);
-        titleFadeTimer = 0;
-        descFadeTimer = 0;
-        gameState.incrementVisit(target);
-        gameState.incrementCommandCount();
-        gameState.addEvent("Moved to " + roomManager.getCurrentRoom().getName());
+        if (transitionFadingOut || transitionFadingIn) return;
+        final Room.RoomID navTarget = target;
+        navigateWithFade(() -> {
+            roomManager.navigateTo(navTarget);
+            titleFadeTimer = 0;
+            descFadeTimer = 0;
+            gameState.incrementVisit(navTarget);
+            gameState.incrementCommandCount();
+            gameState.addEvent("Moved to " + roomManager.getCurrentRoom().getName());
 
-        // +1 awareness per navigation
-        String warning = awarenessSystem.addAwareness(1);
+            String warning = awarenessSystem.addAwareness(1);
 
-        if (gameState.isGameOver()) {
-            showGameOver();
-            return;
-        }
-
-        if (warning != null) {
-            textPanel.show("WARNING\n\n" + narratorSystem.getWarning());
-            panelMode = PanelMode.TEXT;
-        } else {
-            // Check for narrator slip (Entity Discovery)
-            String narratorSlip = narratorSystem.maybeGetNarratorSlip();
-            if (narratorSlip != null) {
-                textPanel.show(narratorSlip);
-                panelMode = PanelMode.TEXT;
+            if (gameState.isGameOver()) {
+                showGameOver();
                 return;
             }
-            // Check for atmospheric events on navigation
-            String atmospheric = narratorSystem.maybeGetAtmosphericEvent();
-            if (atmospheric != null) {
-                textPanel.show(atmospheric);
+
+            if (warning != null) {
+                textPanel.showDialogue("The Narrator", narratorSystem.getWarning(), new ArrayList<>());
                 panelMode = PanelMode.TEXT;
+            } else {
+                String narratorSlip = narratorSystem.maybeGetNarratorSlip();
+                if (narratorSlip != null) {
+                    textPanel.showDialogue("The Narrator", narratorSlip, new ArrayList<>());
+                    panelMode = PanelMode.TEXT;
+                    return;
+                }
+                String atmospheric = narratorSystem.maybeGetAtmosphericEvent();
+                if (atmospheric != null) {
+                    textPanel.showDialogue("The Narrator", atmospheric, new ArrayList<>());
+                    panelMode = PanelMode.TEXT;
+                }
             }
-        }
+        });
     }
 
     // --- Examine ---
@@ -579,7 +672,7 @@ public class GameScreen implements Screen {
                     display.append(drawerResult);
                     if (warning != null)
                         display.append("\n\n--- ").append(narratorSystem.getWarning());
-                    textPanel.show(display.toString());
+                    textPanel.showDialogue("Observation", display.toString(), new ArrayList<>());
                     panelMode = PanelMode.TEXT;
                 }
                 return;
@@ -613,7 +706,7 @@ public class GameScreen implements Screen {
         if (result.hasEvidence()) {
             boolean isNew = evidenceSystem.collect(result.getEvidence());
             if (isNew) {
-                display.append("\n\n[EVIDENCE FOUND: ").append(result.getEvidence().getDisplayName()).append("]");
+                showNotification("Evidence found: " + result.getEvidence().getDisplayName());
                 gameState.addEvent("Found evidence: " + result.getEvidence().getDisplayName());
                 String codeAnnouncement = checkEvidenceForCode(result.getEvidence());
                 if (codeAnnouncement != null) {
@@ -627,7 +720,7 @@ public class GameScreen implements Screen {
         if (result.hasTape()) {
             boolean isNew = evidenceSystem.collectTape(result.getTape());
             if (isNew) {
-                display.append("\n\n[TAPE FOUND: ").append(result.getTape().getTitle()).append("]");
+                showNotification("Tape found: " + result.getTape().getTitle());
                 gameState.addEvent("Found tape: " + result.getTape().getTitle());
                 if (result.getTape() == Tape.TAPE_MARGARET_INTERVIEW) {
                     removeHotspot(Room.RoomID.KITCHEN, "kitchen_floor");
@@ -649,17 +742,11 @@ public class GameScreen implements Screen {
                     .addHotspot(new Hotspot("coat", "Examine: James's Coat", 879, 314, 53, 178));
         }
 
-        if (result.grantsRepairSolution()) {
-            gameState.addRepairSolution();
-            display.append("\n\n[TAPE REPAIR SOLUTION ACQUIRED: ").append(gameState.getRepairSolutionsRemaining())
-                    .append(" total]");
-        }
-
         if (warning != null) {
             display.append("\n\n--- ").append(narratorSystem.getWarning());
         }
 
-        textPanel.show(display.toString());
+        textPanel.showDialogue("Observation", display.toString(), new ArrayList<>());
         panelMode = PanelMode.TEXT;
     }
 
@@ -667,8 +754,8 @@ public class GameScreen implements Screen {
         switch (result.getMiniGame()) {
             case TORN_LETTER_RECONSTRUCTION:
                 // Show intro text first, then start mini-game
-                textPanel.show(narratorSystem.filterText(result.getText())
-                        + "\n\n[Reconstruct the document to reveal its contents...]");
+                textPanel.showDialogue("The Narrator", narratorSystem.filterText(result.getText())
+                        + "\n\n[Reconstruct the document to reveal its contents...]", new ArrayList<>());
                 panelMode = PanelMode.TEXT;
 
                 // Start the mini-game after the text panel is closed
@@ -693,14 +780,14 @@ public class GameScreen implements Screen {
                             if (isNew) {
                                 gameState.addEvent("Found evidence: " + Evidence.TORN_LETTER.getDisplayName());
                             }
-                            textPanel.show(
+                            textPanel.showDialogue("Observation",
                                     "Document reconstructed!\n\n\"...I have seen what James is doing... before the will is signed... you must...\"\n\nThe rest is ash. But someone knew. And they tried to warn him.\n\n[EVIDENCE FOUND: "
-                                            + Evidence.TORN_LETTER.getDisplayName() + "]");
+                                            + Evidence.TORN_LETTER.getDisplayName() + "]", new ArrayList<>());
                             panelMode = PanelMode.TEXT;
                         },
                         // On cancel: no evidence
                         () -> {
-                            textPanel.show("You set the fragments aside for now. Perhaps you'll return to them later.");
+                            textPanel.showDialogue("Observation", "You set the fragments aside for now. Perhaps you'll return to them later.", new ArrayList<>());
                             panelMode = PanelMode.TEXT;
                         });
                 break;
@@ -708,6 +795,20 @@ public class GameScreen implements Screen {
                 break;
         }
         pendingMiniGame = null;
+    }
+
+    private String getTapeVoice(Tape tape) {
+        switch (tape) {
+            case TAPE_JAMES_INTERVIEW:   return "James Vance";
+            case TAPE_MARGARET_INTERVIEW:
+            case TAPE_MARGARET_ACCOUNT:  return "Margaret Vance";
+            case TAPE_DANIEL_INTERVIEW:  return "Daniel the Groundskeeper";
+            case TAPE_MARCUS_INTERVIEW:  return "Marcus Blackwood";
+            case TAPE_CHARLES_INTERVIEW: return "Charles Webb";
+            case TAPE_ARGUMENT:          return "Harold Vance";
+            case TAPE_ARTHUR_DEATH:      return "Arthur Hollis";
+            default:                     return "Police Recording";
+        }
     }
 
     // --- Action Bar ---
@@ -725,16 +826,10 @@ public class GameScreen implements Screen {
         String text = evidenceSystem.getInventoryText();
         List<TextButton> buttons = new ArrayList<>();
 
-        // Add PLAY buttons for unwatched, unlocked tapes that are actually playable
+        // Add PLAY buttons for unwatched, unlocked tapes
         for (Tape t : gameState.getCollectedTapes()) {
             if (!gameState.hasWatchedTape(t) && isTapeUnlocked(t)) {
-                // Suppress button for damaged tapes with no repair solutions left
-                boolean blockedByDamage = isDamagedTape(t)
-                        && !gameState.isTapeRepaired(t)
-                        && gameState.getRepairSolutionsRemaining() == 0;
-                if (!blockedByDamage) {
-                    buttons.add(new TextButton("PLAY: " + t.getTitle(), 0, 0, 220, 35, "play_tape_" + t.name()));
-                }
+                buttons.add(new TextButton("PLAY: " + t.getTitle(), 0, 0, 220, 35, "play_tape_" + t.name()));
             }
         }
 
@@ -894,13 +989,21 @@ public class GameScreen implements Screen {
     // --- Panel Actions ---
 
     private void handlePanelAction(String action) {
+        if ("next_page".equals(action)) {
+            textPanel.nextPage();
+            if (!textPanel.isVisible()) {
+                handlePanelAction("close");
+            }
+            return;
+        }
+
         if ("close".equals(action) || "panel_consumed".equals(action)) {
             if ("close".equals(action)) {
                 // Climax intercept: show climax text instead of closing
                 if (pendingClimax) {
                     pendingClimax = false;
                     gameState.setClimaxTriggered(true);
-                    textPanel.show(ClimaxContent.getTape8Climax(gameState.getAnomalyCount()));
+                    textPanel.showDialogue("The Narrator", ClimaxContent.getTape8Climax(gameState.getAnomalyCount()), new ArrayList<>());
                     panelMode = PanelMode.TEXT;
                     return;
                 }
@@ -912,7 +1015,7 @@ public class GameScreen implements Screen {
                 // Catcher minigame intercept: show intro first, then launch on next dismiss
                 if (pendingCatcherTape != null && panelMode == PanelMode.TAPE_PLAY && !catcherIntroShown) {
                     catcherIntroShown = true;
-                    textPanel.show("The narrator's voice fractures at the edges.\n\n\"Wait -- that's not what happened. That's not -- I remember it differently. I remember--\"\n\nSomething is fighting to distort what you just heard. Catch the true fragments before the distortion overwrites them.");
+                    textPanel.showDialogue("The Narrator", "The narrator's voice fractures at the edges.\n\n\"Wait -- that's not what happened. That's not -- I remember it differently. I remember--\"\n\nSomething is fighting to distort what you just heard. Catch the true fragments before the distortion overwrites them.", new ArrayList<>());
                     panelMode = PanelMode.TEXT;
                     return;
                 }
@@ -933,7 +1036,7 @@ public class GameScreen implements Screen {
                 // Maze minigame intercept: show intro first, then launch on next dismiss
                 if (pendingMazeTape != null && panelMode == PanelMode.TAPE_PLAY && !mazeIntroShown) {
                     mazeIntroShown = true;
-                    textPanel.show("The house folds inward.\n\nSomething in the memory rejects what you just heard. The Narrator's weight presses against the truth.\n\nNavigate what it buried. Find the real path through its distortion.");
+                    textPanel.showDialogue("The Narrator", "The house folds inward.\n\nSomething in the memory rejects what you just heard. The Narrator's weight presses against the truth.\n\nNavigate what it buried. Find the real path through its distortion.", new ArrayList<>());
                     panelMode = PanelMode.TEXT;
                     return;
                 }
@@ -1043,7 +1146,7 @@ public class GameScreen implements Screen {
         if ("end_interview".equals(action)) {
             interviewSystem.endInterview();
             String endText = narratorSystem.getChannelingEnd();
-            textPanel.show(endText);
+            textPanel.showDialogue("The Narrator", endText, new ArrayList<>());
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -1145,6 +1248,10 @@ public class GameScreen implements Screen {
         }
     }
 
+    private void showNotification(String msg) {
+        notifQueue.add(msg);
+    }
+
     private void removeHotspot(Room.RoomID roomId, String objectName) {
         roomManager.getRoom(roomId).getHotspots().removeIf(
                 h -> objectName.equals(h.getObjectName()));
@@ -1174,9 +1281,9 @@ public class GameScreen implements Screen {
     private String handleMargaretDrawer(String objectName) {
         boolean topOpen = gameState.isMargaretTopOpen();
         boolean botOpen = gameState.isMargaretBotOpen();
-        boolean kitTaken = gameState.hasTapeRepairKit();
+        boolean kitExamined = gameState.getExamCount(Room.RoomID.MARGARET_ROOM, "kit") > 0;
         boolean shoesTaken = gameState.isMargaretShoesExamined();
-        boolean canBothOpen = kitTaken && shoesTaken;
+        boolean canBothOpen = kitExamined && shoesTaken;
 
         switch (objectName) {
             case "top_drawer":
@@ -1188,7 +1295,7 @@ public class GameScreen implements Screen {
                     return "The bottom drawer is still open. Close it first.";
                 } else {
                     gameState.setMargaretTopOpen(true);
-                    if (!kitTaken) {
+                    if (!kitExamined) {
                         removeMargaretHotspot("top_drawer");
                         addMargaretKitHotspot();
                     }
@@ -1212,13 +1319,11 @@ public class GameScreen implements Screen {
                 }
 
             case "kit":
-                gameState.setHasTapeRepairKit(true);
-                gameState.addRepairSolution();
                 removeMargaretHotspot("kit");
                 roomManager.getRoom(Room.RoomID.MARGARET_ROOM).getHotspots().add(
                     new Hotspot("top_drawer", "Examine: Top Drawer", 241, 207, 90, 49));
-                gameState.addEvent("Found tape repair kit in Margaret's room");
-                return "You take the tape splicing tools -- scissors, adhesive strips, a manual splicer.\n\n[Tape repair kit acquired. You can now repair damaged tapes.]";
+                gameState.addEvent("Examined tape splicing tools in Margaret's room");
+                return "A set of tape splicing tools -- scissors, adhesive strips, a manual splicer. Whoever owned these knew how to handle recording equipment.";
 
             case "shoes":
                 gameState.setMargaretShoesExamined(true);
@@ -1239,9 +1344,6 @@ public class GameScreen implements Screen {
         return gameState.isUnlockedTape(tape);
     }
 
-    private boolean isDamagedTape(Tape tape) {
-        return tape == Tape.TAPE_DANIEL_INTERVIEW || tape == Tape.TAPE_MARGARET_ACCOUNT;
-    }
 
     /**
      * Called when new evidence is collected. Returns a narrator announcement
@@ -1345,9 +1447,9 @@ public class GameScreen implements Screen {
             default:
                 hint = "Keep investigating.";
         }
-        textPanel.show("LOCKED TAPE: " + tape.getTitle()
+        textPanel.showDialogue("The Narrator", "LOCKED TAPE: " + tape.getTitle()
                 + "\n\nThe tape recorder is sealed in a protective case. Arthur locked these before he disappeared.\n\n"
-                + hint);
+                + hint, new ArrayList<>());
         panelMode = PanelMode.TEXT;
     }
 
@@ -1360,47 +1462,20 @@ public class GameScreen implements Screen {
             return;
         }
 
-        // Gate 2: Tape physically damaged (Tapes 3 and 7 only) — auto-repair if
-        // solutions available
-        boolean wasAutoRepaired = false;
-        if (isDamagedTape(tape) && !gameState.isTapeRepaired(tape)) {
-            if (gameState.getRepairSolutionsRemaining() > 0) {
-                gameState.useRepairSolution(tape);
-                wasAutoRepaired = true;
-                // Continue — tape is now repaired, play it
-            } else {
-                textPanel.show(
-                        "DAMAGED TAPE\n\nThis tape needs splicing equipment to repair, but you have none left.\n\n[Find tape repair solutions in the manor -- check the Servants' Quarters nightstand, the Study fireplace ashes, the Kitchen flour tin, and the Cellar flour sacks.]");
-                panelMode = PanelMode.TEXT;
-                return;
-            }
-        }
-
-        // Gate 3: Tape 8 — needs repair kit from Margaret's Room
-        if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.hasTapeRepairKit()) {
-            textPanel.show("DAMAGED TAPE\n\nThe tape's casing is cracked and the ribbon inside " +
-                    "is snapped. You can hear fragments rattling loose inside the housing.\n\n" +
-                    "Someone recorded something important on this tape, but it's been badly damaged -- " +
-                    "possibly deliberately. You'd need recording equipment to splice the ribbon back together.\n\n" +
-                    "[Find a way to repair this tape.]");
-            panelMode = PanelMode.TEXT;
-            return;
-        }
-
-        // Gate 4: Tape 8 — must have learned CELLAR-WARNING (watched Tape 7)
+        // Gate 2: Tape 8 — must have learned CELLAR-WARNING (watched Tape 7)
         if (tape == Tape.TAPE_ARTHUR_DEATH && !gameState.hasLearnedCode("CELLAR-WARNING")) {
-            textPanel.show(
-                    "DAMAGED TAPE -- SEQUENCE INCOMPLETE\n\nThe tape is repaired, but something holds you back. There is another recording you must hear first.\n\n[Find and watch Margaret's personal account.]");
+            textPanel.showDialogue("The Narrator",
+                    "SEQUENCE INCOMPLETE\n\nSomething holds you back. There is another recording you must hear first.\n\n[Find and watch Margaret's personal account.]", new ArrayList<>());
             panelMode = PanelMode.TEXT;
             return;
         }
 
-        // Gate 5: Tape 8 — 3 contradictions required
+        // Gate 3: Tape 8 — 3 contradictions required
         if (tape == Tape.TAPE_ARTHUR_DEATH && gameState.getDiscoveredContradictions().size() < 3) {
             int remaining = 3 - gameState.getDiscoveredContradictions().size();
-            textPanel.show("DAMAGED TAPE\n\nThe tape is repaired. But " + remaining + " contradiction"
+            textPanel.showDialogue("The Narrator", "SEQUENCE INCOMPLETE\n\nThe tape is ready. But " + remaining + " contradiction"
                     + (remaining > 1 ? "s remain" : " remains")
-                    + " unresolved in this case. The full truth requires more investigation.\n\n[Present evidence during interviews to uncover contradictions.]");
+                    + " unresolved in this case. The full truth requires more investigation.\n\n[Present evidence during interviews to uncover contradictions.]", new ArrayList<>());
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -1416,11 +1491,6 @@ public class GameScreen implements Screen {
         String warning = awarenessSystem.addAwareness(awarenessCost);
 
         StringBuilder sb = new StringBuilder();
-
-        if (wasAutoRepaired) {
-            sb.append("[Tape repaired using a splicing solution. Repair solutions remaining: ")
-                    .append(gameState.getRepairSolutionsRemaining()).append("]\n\n");
-        }
 
         // Tape 8 (The Opening) has a special prefix about its unknown origin
         if (tape == Tape.TAPE_ARTHUR_DEATH) {
@@ -1447,7 +1517,7 @@ public class GameScreen implements Screen {
             pendingClimax = true;
         }
 
-        textPanel.show(sb.toString());
+        textPanel.showDialogue(getTapeVoice(tape), sb.toString(), new ArrayList<>());
         panelMode = PanelMode.TAPE_PLAY;
 
         // Queue the Catcher minigame for the first three tapes (once per tape)
@@ -1495,7 +1565,7 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("Show Evidence", 0, 0, 200, 35, "show_evidence_list"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
 
-        textPanel.show(sb.toString(), buttons);
+        textPanel.showDialogue(suspect.getDisplayName(), sb.toString(), buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1551,8 +1621,8 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("Show Evidence", 0, 0, 200, 35, "show_evidence_list"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
 
-        textPanel.showButtons(
-                "Interview: " + suspect.getDisplayName() + " (Cooperation: " + gameState.getCooperation(suspect) + "%)",
+        textPanel.showDialogue(suspect.getDisplayName(),
+                "Cooperation: " + gameState.getCooperation(suspect) + "%\n\nSelect a topic to ask about.",
                 buttons);
         panelMode = PanelMode.INTERVIEW;
     }
@@ -1594,7 +1664,9 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
 
-        textPanel.show(sb.toString(), buttons);
+        String _speaker = interviewSystem.getCurrentSuspect() != null
+                ? interviewSystem.getCurrentSuspect().getDisplayName() : "Suspect";
+        textPanel.showDialogue(_speaker, sb.toString(), buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1606,13 +1678,12 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
 
-        if (gameState.getCollectedEvidence().isEmpty()) {
-            textPanel.showButtons("No evidence to show.\nCollect evidence by examining objects.", buttons);
-        } else {
-            Suspect activeSuspect = interviewSystem.getCurrentSuspect();
-            String suspectLabel = (activeSuspect != null) ? activeSuspect.getDisplayName() : "the suspect";
-            textPanel.showButtons("Select evidence to show " + suspectLabel + ":", buttons);
-        }
+        Suspect activeSuspect = interviewSystem.getCurrentSuspect();
+        String _evSpeaker = (activeSuspect != null) ? activeSuspect.getDisplayName() : "Suspect";
+        String _evText = gameState.getCollectedEvidence().isEmpty()
+                ? "No evidence to show.\n\nCollect evidence by examining objects."
+                : "Select evidence to present.";
+        textPanel.showDialogue(_evSpeaker, _evText, buttons);
         panelMode = PanelMode.SHOW_EVIDENCE;
     }
 
@@ -1645,7 +1716,9 @@ public class GameScreen implements Screen {
         buttons.add(new TextButton("Show More Evidence", 0, 0, 200, 35, "show_evidence_list"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
 
-        textPanel.show(sb.toString(), buttons);
+        String _speaker = interviewSystem.getCurrentSuspect() != null
+                ? interviewSystem.getCurrentSuspect().getDisplayName() : "Suspect";
+        textPanel.showDialogue(_speaker, sb.toString(), buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1669,7 +1742,9 @@ public class GameScreen implements Screen {
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
-        textPanel.show(sb.toString(), buttons);
+        String _speaker = interviewSystem.getCurrentSuspect() != null
+                ? interviewSystem.getCurrentSuspect().getDisplayName() : "Suspect";
+        textPanel.showDialogue(_speaker, sb.toString(), buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1693,7 +1768,9 @@ public class GameScreen implements Screen {
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
-        textPanel.show(sb.toString(), buttons);
+        String _speaker = interviewSystem.getCurrentSuspect() != null
+                ? interviewSystem.getCurrentSuspect().getDisplayName() : "Suspect";
+        textPanel.showDialogue(_speaker, sb.toString(), buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1720,7 +1797,9 @@ public class GameScreen implements Screen {
         List<TextButton> buttons = new ArrayList<>();
         buttons.add(new TextButton("Back to Topics", 0, 0, 200, 35, "back_to_topics"));
         buttons.add(new TextButton("End Interview", 0, 0, 200, 35, "end_interview"));
-        textPanel.show(sb.toString(), buttons);
+        String _speaker = interviewSystem.getCurrentSuspect() != null
+                ? interviewSystem.getCurrentSuspect().getDisplayName() : "Suspect";
+        textPanel.showDialogue(_speaker, sb.toString(), buttons);
         panelMode = PanelMode.INTERVIEW;
     }
 
@@ -1728,9 +1807,9 @@ public class GameScreen implements Screen {
 
     private void handleAccusation(String action) {
         if (gameState.getWrongAccusationCount() >= 3) {
-            textPanel.show("ACCUSATION BLOCKED\n\nAfter " + gameState.getWrongAccusationCount() +
+            textPanel.showDialogue("The Narrator", "ACCUSATION BLOCKED\n\nAfter " + gameState.getWrongAccusationCount() +
                     " wrong accusations, the suspects have closed ranks. They won't engage with " +
-                    "further accusations.\n\n[Build a stronger case before accusing anyone else.]");
+                    "further accusations.\n\n[Build a stronger case before accusing anyone else.]", new ArrayList<>());
             panelMode = PanelMode.TEXT;
             return;
         }
@@ -1808,7 +1887,7 @@ public class GameScreen implements Screen {
                 }
             }
 
-            textPanel.show(winText.toString());
+            textPanel.showDialogue("Case Closed", winText.toString(), new ArrayList<>());
             panelMode = PanelMode.TEXT;
         } else {
             // Wrong accusation: +15 awareness
@@ -1860,7 +1939,7 @@ public class GameScreen implements Screen {
 
             gameState.setChosenEnding(GameState.Ending.ACCUSATION_WRONG);
             gameState.setAccusationMade(false); // allow retry
-            textPanel.show(sb.toString());
+            textPanel.showDialogue("The Narrator", sb.toString(), new ArrayList<>());
             panelMode = PanelMode.TEXT;
         }
     }
@@ -1933,7 +2012,7 @@ public class GameScreen implements Screen {
                 .append("\n");
         sb.append("Commands used: ").append(gameState.getCommandCount());
 
-        textPanel.show(sb.toString());
+        textPanel.showDialogue("The Narrator", sb.toString(), new ArrayList<>());
         panelMode = PanelMode.TEXT;
     }
 
@@ -1985,7 +2064,7 @@ public class GameScreen implements Screen {
             }
         }
 
-        textPanel.show(sb.toString());
+        textPanel.showDialogue("The Narrator", sb.toString(), new ArrayList<>());
         panelMode = PanelMode.TEXT;
     }
 
@@ -2175,6 +2254,36 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         if (minigameReturnCooldown > 0f) minigameReturnCooldown -= delta;
 
+        // Advance notification timer; pop next queued notification when current expires
+        if (currentNotif != null) {
+            notifTimer -= delta;
+            if (notifTimer <= 0f) {
+                currentNotif = notifQueue.isEmpty() ? null : notifQueue.poll();
+                if (currentNotif != null) notifTimer = NOTIF_DURATION;
+            }
+        } else if (!notifQueue.isEmpty()) {
+            currentNotif = notifQueue.poll();
+            notifTimer = NOTIF_DURATION;
+        }
+
+        // Advance room transition fade
+        if (transitionFadingOut) {
+            transitionAlpha = Math.min(1f, transitionAlpha + delta * TRANSITION_SPEED);
+            if (transitionAlpha >= 1f) {
+                transitionFadingOut = false;
+                transitionFadingIn = true;
+                if (pendingTransition != null) {
+                    pendingTransition.run();
+                    pendingTransition = null;
+                }
+            }
+        } else if (transitionFadingIn) {
+            transitionAlpha = Math.max(0f, transitionAlpha - delta * TRANSITION_SPEED);
+            if (transitionAlpha <= 0f) {
+                transitionFadingIn = false;
+            }
+        }
+
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
@@ -2220,7 +2329,7 @@ public class GameScreen implements Screen {
             boolean tapeTaken = gameState.hasTape(Tape.TAPE_MARGARET_ACCOUNT);
             boolean topOpen = gameState.isMargaretTopOpen();
             boolean botOpen = gameState.isMargaretBotOpen();
-            boolean kitTaken = gameState.hasTapeRepairKit();
+            boolean kitExamined = gameState.getExamCount(Room.RoomID.MARGARET_ROOM, "kit") > 0;
             boolean shoesTaken = gameState.isMargaretShoesExamined();
             Texture t = null;
             if (!tapeTaken) {
@@ -2230,9 +2339,9 @@ public class GameScreen implements Screen {
                     t = mTapeTopClosedBotOpenShoes;
                 else if (!topOpen && botOpen && shoesTaken)
                     t = mTapeTopClosedBotOpenNoShoes;
-                else if (topOpen && !botOpen && !kitTaken)
+                else if (topOpen && !botOpen && !kitExamined)
                     t = mTapeTopOpenKit;
-                else if (topOpen && !botOpen && kitTaken)
+                else if (topOpen && !botOpen && kitExamined)
                     t = mTapeTopOpenNoKit;
                 else if (topOpen && botOpen)
                     t = mTapeTopOpenNoKitBotOpen;
@@ -2243,9 +2352,9 @@ public class GameScreen implements Screen {
                     t = mNoTapeTopClosedBotOpenShoes;
                 else if (!topOpen && botOpen && shoesTaken)
                     t = mNoTapeTopClosedBotOpenNoShoes;
-                else if (topOpen && !botOpen && !kitTaken)
+                else if (topOpen && !botOpen && !kitExamined)
                     t = mNoTapeTopOpenKit;
-                else if (topOpen && !botOpen && kitTaken)
+                else if (topOpen && !botOpen && kitExamined)
                     t = mNoTapeTopOpenNoKit;
                 else if (topOpen && botOpen)
                     t = mNoTapeTopOpenNoKitBotOpen;
@@ -2258,21 +2367,6 @@ public class GameScreen implements Screen {
         }
 
 
-
-        // Draw back button if this room has a back hotspot
-        boolean hasBackHotspot = false;
-        for (Hotspot hotspot : currentRoom.getHotspots()) {
-            if (hotspot.getType() == Hotspot.HotspotType.ARROW_BACK) {
-                hasBackHotspot = true;
-                break;
-            }
-        }
-        if (hasBackHotspot && backButtonTexture != null) {
-            batch.setColor(Color.WHITE);
-            batch.draw(backButtonTexture,
-                    HotspotPositions.BACK_BTN_X, HotspotPositions.BACK_BTN_Y,
-                    HotspotPositions.BACK_BTN_W, HotspotPositions.BACK_BTN_H);
-        }
 
         // Draw room name with text shadow (top-left, fades out)
         float titleAlpha = MathUtils.clamp(1f - (titleFadeTimer - TITLE_FADE_DURATION), 0f, 1f);
@@ -2331,23 +2425,36 @@ public class GameScreen implements Screen {
             font.setColor(Color.WHITE);
         }
 
-        // Draw room description with text shadow (fades out), positioned above action
-        // bar
+        // Draw room description box — top-left, distinct slate style
         float descAlpha = MathUtils.clamp(1f - (descFadeTimer - DESC_FADE_DURATION), 0f, 1f);
         if (descAlpha > 0) {
             String description = RoomDescriptions.getDescription(
                     currentRoom.getId(),
                     gameState.getVisitCount(currentRoom.getId()),
                     gameState.getAwareness());
-            float descX = 20;
-            float descY = actionBar.getBarHeight() + 30;
+            layout.setText(font, description);
+            float pad = 10f;
+            float boxW = layout.width + pad * 2;
+            float boxH = layout.height + pad * 2;
+            float boxX = 16f;
+            float boxY = DSAGame.SCREEN_HEIGHT - boxH - 16f;
 
-            // Shadow
-            font.setColor(0, 0, 0, descAlpha * 0.7f);
-            font.draw(batch, description, descX + 1, descY - 1);
+            // Background — deep slate blue, distinct from tooltip teal-black
+            batch.setColor(0.08f, 0.10f, 0.22f, 0.88f * descAlpha);
+            batch.draw(pixelTexture, boxX, boxY, boxW, boxH);
+            // Accent border — muted dusty rose/mauve left edge + full border
+            batch.setColor(0.65f, 0.45f, 0.55f, 0.9f * descAlpha);
+            batch.draw(pixelTexture, boxX, boxY, boxW, 1);
+            batch.draw(pixelTexture, boxX, boxY + boxH - 1, boxW, 1);
+            batch.draw(pixelTexture, boxX, boxY, 1, boxH);
+            batch.draw(pixelTexture, boxX + boxW - 1, boxY, 1, boxH);
+            // Thicker left accent bar
+            batch.setColor(0.75f, 0.50f, 0.62f, 0.95f * descAlpha);
+            batch.draw(pixelTexture, boxX, boxY, 3, boxH);
             // Text
-            font.setColor(0.9f, 0.9f, 0.85f, descAlpha);
-            font.draw(batch, description, descX, descY);
+            batch.setColor(Color.WHITE);
+            font.setColor(0.92f, 0.88f, 0.95f, descAlpha);
+            font.draw(batch, description, boxX + pad, boxY + boxH - pad);
             font.setColor(Color.WHITE);
         }
 
@@ -2359,6 +2466,87 @@ public class GameScreen implements Screen {
         // Draw action bar
         actionBar.render(batch, font);
 
+        // Draw back button (back.png) in upper-right for rooms with ARROW_BACK hotspot
+        if (!textPanel.isVisible()) {
+            for (Hotspot h : roomManager.getCurrentRoom().getHotspots()) {
+                if (h.getType() == Hotspot.HotspotType.ARROW_BACK) {
+                    final float BW = 70f, BH = 70f;
+                    final float BX = 12f;
+                    final float BY = actionBar.getBarHeight() + 4f;
+                    // Keep hotspot bounds in sync with rendered position
+                    h.setBounds(BX, BY, BW, BH);
+                    float brightness = h.isHovered() ? 0.75f : 1f;
+                    batch.setColor(brightness, brightness, brightness, 1f);
+                    batch.draw(backButtonTex, BX, BY, BW, BH);
+                    batch.setColor(Color.WHITE);
+                    break;
+                }
+            }
+        }
+
+        // Draw character portraits — VN two-portrait system (left / right)
+        {
+            boolean dlgMode = textPanel.isVisible() && textPanel.isDialogueMode();
+            if (dlgMode) {
+                String pageText = textPanel.getCurrentPageText();
+                String pageSpeaker = detectPageSpeaker(pageText);
+                if (pageSpeaker == null && pageText != null
+                        && !pageText.startsWith("===") && !pageText.startsWith("[")) {
+                    pageSpeaker = textPanel.getSpeaker();
+                }
+                // Clear speaker name on headers and stage directions
+                if (pageSpeaker == null && pageText != null
+                        && (pageText.startsWith("===") || pageText.startsWith("["))) {
+                    textPanel.setSpeaker(null);
+                }
+                if (pageSpeaker != null) {
+                    // Update dialogue box header to show the actual per-page speaker
+                    textPanel.setSpeaker(pageSpeaker);
+                    if (portraitTextures.containsKey(pageSpeaker)) {
+                        // Assign first seen speaker to left, second to right
+                        if (leftSpeaker == null) {
+                            leftSpeaker  = pageSpeaker;
+                            leftPortrait = portraitTextures.get(pageSpeaker);
+                        } else if (!pageSpeaker.equals(leftSpeaker) && rightSpeaker == null) {
+                            rightSpeaker  = pageSpeaker;
+                            rightPortrait = portraitTextures.get(pageSpeaker);
+                        }
+                        leftIsActive = pageSpeaker.equals(leftSpeaker);
+                    }
+                }
+            } else {
+                // Reset when dialogue closes
+                leftSpeaker = null; rightSpeaker = null;
+                leftPortrait = null; rightPortrait = null;
+                leftIsActive = true;
+            }
+
+            // Active speaker = full brightness, inactive = dimmed
+            float leftTarget  = leftPortrait  != null ? (leftIsActive  ? 1f : 0.45f) : 0f;
+            float rightTarget = rightPortrait != null ? (!leftIsActive ? 1f : 0.45f) : 0f;
+            leftAlpha  += (leftTarget  - leftAlpha)  * Math.min(1f, delta * 8f);
+            rightAlpha += (rightTarget - rightAlpha) * Math.min(1f, delta * 8f);
+
+            final float PH = 560f;
+
+            // Left portrait (normal orientation, faces right toward center)
+            if (leftPortrait != null && leftAlpha > 0.01f) {
+                float pw = PH * leftPortrait.getWidth() / (float) leftPortrait.getHeight();
+                batch.setColor(1f, 1f, 1f, leftAlpha);
+                batch.draw(leftPortrait, 40f, 0f, pw, PH);
+            }
+
+            // Right portrait (flipped horizontally so character faces left toward center)
+            if (rightPortrait != null && rightAlpha > 0.01f) {
+                float pw = PH * rightPortrait.getWidth() / (float) rightPortrait.getHeight();
+                float px = DSAGame.SCREEN_WIDTH - 40f - pw;
+                batch.setColor(1f, 1f, 1f, rightAlpha);
+                batch.draw(rightPortrait, px + pw, 0f, -pw, PH); // negative width = horizontal flip
+            }
+
+            batch.setColor(Color.WHITE);
+        }
+
         // Update and draw text panel (on top of everything)
         textPanel.update(delta);
         textPanel.render(batch, font);
@@ -2368,6 +2556,36 @@ public class GameScreen implements Screen {
             documentGame.render(batch, font);
         }
 
+        // Draw upper-right pop-up notification
+        if (currentNotif != null && notifTimer > 0f) {
+            float fadeAlpha = Math.min(1f, notifTimer / 0.4f); // fade out in last 0.4s
+            layout.setText(font, currentNotif);
+            float notifPad = 12f;
+            float notifW = layout.width + notifPad * 2;
+            float notifH = layout.height + notifPad * 2;
+            float notifX = DSAGame.SCREEN_WIDTH - notifW - 16;
+            float notifY = DSAGame.SCREEN_HEIGHT - notifH - 16;
+
+            batch.setColor(0.05f, 0.12f, 0.08f, 0.90f * fadeAlpha);
+            batch.draw(pixelTexture, notifX, notifY, notifW, notifH);
+            batch.setColor(0.6f, 0.55f, 0.35f, 0.9f * fadeAlpha);
+            batch.draw(pixelTexture, notifX, notifY, notifW, 1);
+            batch.draw(pixelTexture, notifX, notifY + notifH - 1, notifW, 1);
+            batch.draw(pixelTexture, notifX, notifY, 1, notifH);
+            batch.draw(pixelTexture, notifX + notifW - 1, notifY, 1, notifH);
+            batch.setColor(Color.WHITE);
+            font.setColor(0.95f, 0.93f, 0.85f, fadeAlpha);
+            font.draw(batch, currentNotif, notifX + notifPad, notifY + notifH - notifPad);
+            font.setColor(Color.WHITE);
+            batch.setColor(Color.WHITE);
+        }
+
+        // Room transition fade overlay
+        if (transitionAlpha > 0f) {
+            batch.setColor(0f, 0f, 0f, transitionAlpha);
+            batch.draw(pixelTexture, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
+            batch.setColor(Color.WHITE);
+        }
 
         batch.end();
     }
@@ -2403,7 +2621,7 @@ public class GameScreen implements Screen {
                     .addHotspot(new Hotspot("coat", "Examine: James's Coat", 879, 314, 53, 178));
         }
         // Restore drawer hotspot state if drawers were open when saved
-        if (gameState.isMargaretTopOpen() && !gameState.hasTapeRepairKit()) {
+        if (gameState.isMargaretTopOpen() && gameState.getExamCount(Room.RoomID.MARGARET_ROOM, "kit") == 0) {
             removeHotspot(Room.RoomID.MARGARET_ROOM, "top_drawer");
             addMargaretKitHotspot();
         }
@@ -2416,7 +2634,7 @@ public class GameScreen implements Screen {
     private void showOpeningSequence() {
         gameState.setNarratorHeaderShown(true); // prevent it firing again on first examine
 
-        textPanel.show(
+        textPanel.showDialogue("The Narrator",
                 "[A voice fills your mind{p} -- not from any direction,{p} but from everywhere at once.{p} Like a memory that isn't yours.]{P}\n\n"
                         +
                         "\"Ah.{p} You came.{p} Good.{P} I've been waiting for someone " +
@@ -2430,7 +2648,7 @@ public class GameScreen implements Screen {
                         "chandelier.{p} The air smells of old wood and something faintly metallic.{p} Doors " +
                         "lead deeper into the house.\n\n" +
                         "Somewhere in this manor, a murder went unsolved.{p} The evidence is still here.{p} " +
-                        "So are the secrets.");
+                        "So are the secrets.", new ArrayList<>());
         panelMode = PanelMode.TEXT;
     }
 
@@ -2453,6 +2671,9 @@ public class GameScreen implements Screen {
         titleFont.dispose();
         for (Texture tex : roomTextures.values())
             tex.dispose();
+        if (portraitTextures != null)
+            for (Texture tex : portraitTextures.values())
+                tex.dispose();
         if (kitchenWithoutTapeTex != null)
             kitchenWithoutTapeTex.dispose();
         if (jamesClosedTex != null)
@@ -2485,9 +2706,8 @@ public class GameScreen implements Screen {
             mNoTapeTopOpenNoKit.dispose();
         if (mNoTapeTopOpenNoKitBotOpen != null)
             mNoTapeTopOpenNoKitBotOpen.dispose();
+        if (backButtonTex != null) backButtonTex.dispose();
         pixelTexture.dispose();
-        if (backButtonTexture != null)
-            backButtonTexture.dispose();
         textPanel.dispose();
         awarenessMeter.dispose();
         actionBar.dispose();

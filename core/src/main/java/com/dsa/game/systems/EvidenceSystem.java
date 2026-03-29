@@ -68,16 +68,11 @@ public class EvidenceSystem {
             for (Tape t : state.getCollectedTapes()) {
                 boolean watched = state.hasWatchedTape(t);
                 boolean unlocked = state.isUnlockedTape(t);
-                boolean damaged = (t == Tape.TAPE_ARTHUR_DEATH
-                    || t == Tape.TAPE_DANIEL_INTERVIEW
-                    || t == Tape.TAPE_MARGARET_ACCOUNT);
                 sb.append("* ").append(t.getTitle());
                 if (watched) {
                     sb.append(" [WATCHED]");
                 } else if (!unlocked) {
                     sb.append(" [LOCKED]");
-                } else if (damaged && !state.isTapeRepaired(t)) {
-                    sb.append(" [DAMAGED -- needs repair solution: ").append(state.getRepairSolutionsRemaining()).append(" available]");
                 } else {
                     sb.append(" [PLAY AVAILABLE]");
                 }
