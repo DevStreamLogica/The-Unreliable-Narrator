@@ -117,6 +117,10 @@ public class DinnerCutsceneScreen implements Screen {
         buttons.add(new TextButton("Begin investigation.", 0, 0, 200, 40, "begin_game"));
         textPanel.showDialogue(null, DINNER_TEXT, buttons);
 
+        if (game.bgMusic != null && !game.bgMusic.isPlaying()) {
+            game.bgMusic.play();
+        }
+
         setupInput();
     }
 

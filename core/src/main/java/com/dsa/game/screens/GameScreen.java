@@ -2853,10 +2853,12 @@ public class GameScreen implements Screen {
 
     @Override
     public void pause() {
+        if (game.bgMusic != null) game.bgMusic.pause();
     }
 
     @Override
     public void resume() {
+        if (game.bgMusic != null) game.bgMusic.play();
     }
 
     @Override
