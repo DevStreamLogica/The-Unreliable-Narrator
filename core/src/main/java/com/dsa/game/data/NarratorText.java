@@ -18,7 +18,7 @@ public class NarratorText {
             "A faint draft brushes past. Someone left a window open, perhaps."
         },
         {
-            "Wait -- did you already examine that? Your notes seem... incomplete.",
+            "Wait -- did you already examine that? Your memory feels slippery here.",
             "The hallway looks different than you remember. Have the paintings moved?",
             "You could swear this door was open a moment ago.",
             "Your thoughts feel sluggish. When did you last sleep?"
@@ -40,15 +40,15 @@ public class NarratorText {
     private static final String[][] ENVIRONMENTAL_CUES = {
         {
             "Dust motes drift lazily in a beam of pale sunlight.",
-            "The grandfather clock ticks steadily. Reassuring, almost.",
+            "The grandfather clock ticks steadily in the hall.",
             "A bird calls outside the window. The world beyond the manor continues.",
-            "The fire crackles warmly. This would be a pleasant house, under other circumstances."
+            "The fire crackles in the grate. The manor is quiet."
         },
         {
             "The shadows seem longer than they should be at this hour.",
-            "A door somewhere in the house opens and closes by itself.",
             "The clock seems to be running backwards. No -- you're imagining things.",
-            "The smell of old paper and something metallic hangs in the air."
+            "The smell of old paper and something metallic hangs in the air.",
+            "This would be a pleasant house, under other circumstances."
         },
         {
             "The lights flicker. When they steady, every shadow seems deeper.",
@@ -68,7 +68,7 @@ public class NarratorText {
         {
             "You note with interest: ",
             "A promising lead -- ",
-            "Your detective's instinct says: ",
+            "Something pulls your attention: ",
             "Carefully, you observe: "
         },
         {
@@ -184,6 +184,40 @@ public class NarratorText {
         // FRANTIC
         "[A violent snap.] \"I don't know where they end and I begin.\""
     };
+
+    // --- Hold resistance: narrator pushes back when player lingers on hidden items ---
+
+    private static final String[][] HOLD_RESISTANCE = {
+        // HOPEFUL
+        {
+            "\"I wouldn't bother with that. The answers are elsewhere.\"",
+            "\"There's nothing useful there -- trust me.\"",
+            "\"Perhaps try a different direction.\""
+        },
+        // CONFUSED
+        {
+            "\"I... don't think you need to look there.\"",
+            "\"Why are you stopping? There's nothing there.\"",
+            "\"That spot feels wrong. Please, just move on.\""
+        },
+        // ANXIOUS
+        {
+            "\"Don't. Please don't look there.\"",
+            "\"There is NOTHING there. Why won't you listen?\"",
+            "\"Move away. Right now. Please.\""
+        },
+        // FRANTIC
+        {
+            "\"STOP LOOKING THERE.\"",
+            "\"YOU DON'T NEED TO SEE THAT. LEAVE IT ALONE.\"",
+            "\"I'M WARNING YOU. THERE IS NOTHING THERE.\""
+        }
+    };
+
+    public static String getRandomHoldResistance(Mood mood) {
+        String[] lines = HOLD_RESISTANCE[mood.ordinal()];
+        return lines[(int)(Math.random() * lines.length)];
+    }
 
     public static String getChannelingFirstIntro(Mood mood) { return CHANNELING_FIRST_INTRO[mood.ordinal()]; }
     public static String getChannelingReturnIntro(Mood mood) { return CHANNELING_RETURN_INTRO[mood.ordinal()]; }

@@ -43,6 +43,8 @@ public class GameScreen implements Screen {
 
     private Map<Room.RoomID, Texture> roomTextures;
     private Texture kitchenWithoutTapeTex;
+    private Texture parlorWithoutBriefcaseTex;
+    private Texture studyWithoutTapeTex;
     private Texture jamesClosedTex;
     private Texture shedTapeBoots;
     private Texture shedTapeNoBoots;
@@ -159,6 +161,39 @@ public class GameScreen implements Screen {
     private boolean mazeIntroShown = false;
     private final java.util.Set<Tape> mazePlayedTapes = new java.util.HashSet<>();
 
+    // --- Darkness / lighting mechanic ---
+    private Texture spotlightTexture;
+    private com.badlogic.gdx.graphics.glutils.FrameBuffer lightsBuffer;
+    private float cursorGameX = DSAGame.SCREEN_WIDTH / 2f;
+    private float cursorGameY = DSAGame.SCREEN_HEIGHT / 2f;
+
+    // Entity cursor pull
+    private float pullOffsetX   = 0f, pullOffsetY   = 0f;
+    private float pullTimer     = 0f, pullActiveTimer = 0f;
+    private boolean pullActive  = false;
+    private static final float PULL_INTERVAL = 10f;
+    private static final float PULL_DURATION  = 2.5f;
+    private static final float PULL_MAX       = 45f;
+
+    // Hold-timer (hover-to-examine replaces click-to-examine)
+    private float  holdTimer        = 0f;
+    private String holdTargetObject = null;
+    private static final float HOLD_TIME_MIN = 1.2f; // seconds at awareness 0
+    private static final float HOLD_TIME_MAX = 3.2f; // seconds at awareness 80
+
+    // Mouse stillness — hold timer only begins after mouse has been still 1 second
+    private float mouseStillTimer = 0f;
+    private static final float MOUSE_STILL_DELAY = 1f;
+
+    // Reveal state — item shown in room briefly before examination fires
+    private String pendingRevealObject = null;
+    private float revealTimer = 0f;
+    private static final float REVEAL_DURATION = 0.8f;
+
+    // Ambient narrator timer — periodic chatter while player is idle in a room
+    private float ambientNarratorTimer = 15f; // first line fires after 15s
+    private float ambientNarratorInterval = 0f; // set each time a line fires
+
     public GameScreen(DSAGame game) {
         this.game = game;
         this.batch = game.batch;
@@ -199,6 +234,9 @@ public class GameScreen implements Screen {
         awarenessMeter = new AwarenessMeter();
         actionBar = new ActionBar();
         documentGame = new DocumentReconstructionGame();
+        spotlightTexture = createSpotlightTexture();
+        lightsBuffer = new com.badlogic.gdx.graphics.glutils.FrameBuffer(
+                Pixmap.Format.RGBA8888, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT, false);
 
         setupInput();
     }
@@ -221,6 +259,12 @@ public class GameScreen implements Screen {
         }
         if (Gdx.files.internal("rooms/kitchen without.png").exists()) {
             kitchenWithoutTapeTex = new Texture(Gdx.files.internal("rooms/kitchen without.png"));
+        }
+        if (Gdx.files.internal("rooms/parlort without briefcase.jpg").exists()) {
+            parlorWithoutBriefcaseTex = new Texture(Gdx.files.internal("rooms/parlort without briefcase.jpg"));
+        }
+        if (Gdx.files.internal("rooms/study without tape.jpg").exists()) {
+            studyWithoutTapeTex = new Texture(Gdx.files.internal("rooms/study without tape.jpg"));
         }
         mTapeTopClosedBotClosed = loadMargaretTex("Tape, Top Closed, Bottom Closed.png");
         mTapeTopClosedBotOpenShoes = loadMargaretTex("Tape, Top Closed, Bottom Open with Shoes.png");
@@ -263,6 +307,28 @@ public class GameScreen implements Screen {
     private Texture loadTex(String path) {
         if (Gdx.files.internal(path).exists()) return new Texture(Gdx.files.internal(path));
         return null;
+    }
+
+    /** Programmatic radial spotlight: warm centre fading to transparent at edges. */
+    private Texture createSpotlightTexture() {
+        int size = 256;
+        com.badlogic.gdx.graphics.Pixmap pm =
+                new com.badlogic.gdx.graphics.Pixmap(size, size,
+                        com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        int cx = size / 2, cy = size / 2;
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                float dx = x - cx, dy = y - cy;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy) / (size / 2f);
+                float brightness = Math.max(0f, 1f - dist * dist * dist * dist); // steep falloff
+                // RGB encodes brightness (multiply mask): white=reveal room, black=darkness
+                pm.setColor(0.92f * brightness, 0.85f * brightness, 0.65f * brightness, 1f);
+                pm.drawPixel(x, y);
+            }
+        }
+        Texture tex = new Texture(pm);
+        pm.dispose();
+        return tex;
     }
 
     private void generateUITextures() {
@@ -348,11 +414,10 @@ public class GameScreen implements Screen {
                     return true;
                 }
 
-                // Hotspots - Check EXAMINE hotspots first (they take priority over navigation)
+                // EXAMINE hotspots are triggered by hold timer, not click — consume click silently
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
                     if (hotspot.contains(gameX, gameY) && hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
-                        handleExamine(hotspot.getObjectName());
-                        return true;
+                        return true; // consumed — hold timer in render() handles examination
                     }
                 }
 
@@ -394,6 +459,9 @@ public class GameScreen implements Screen {
                 viewport.unproject(touchPos);
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
+                cursorGameX = gameX;
+                cursorGameY = gameY;
+                mouseStillTimer = 0f;
                 currentTooltip = "";
 
                 // Mini-game hover handling
@@ -2254,6 +2322,105 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         if (minigameReturnCooldown > 0f) minigameReturnCooldown -= delta;
 
+        // --- HOLD TIMER UPDATE ---
+        if (!textPanel.isVisible() && !gameState.isGameOver() && !gameState.isGameWon()
+                && !documentGame.isActive()) {
+            mouseStillTimer += delta;
+
+            String hoveredExamine = null;
+            for (Hotspot h : roomManager.getCurrentRoom().getHotspots()) {
+                if (h.contains(cursorGameX, cursorGameY)
+                        && h.getType() == Hotspot.HotspotType.EXAMINE) {
+                    hoveredExamine = h.getObjectName();
+                    break;
+                }
+            }
+            if (hoveredExamine != null) {
+                if (holdTargetObject == null) {
+                    // Not yet started — wait for mouse to be still before beginning
+                    if (mouseStillTimer >= MOUSE_STILL_DELAY) {
+                        holdTargetObject = hoveredExamine;
+                        holdTimer = 0f;
+                        showNotification(NarratorText.getRandomHoldResistance(
+                                narratorSystem.getCurrentMood()));
+                    }
+                } else if (!hoveredExamine.equals(holdTargetObject)) {
+                    // Cursor moved to a different hotspot — restart
+                    holdTargetObject = hoveredExamine;
+                    holdTimer = 0f;
+                    showNotification(NarratorText.getRandomHoldResistance(
+                            narratorSystem.getCurrentMood()));
+                }
+                // Once started, keep filling regardless of small mouse movements
+                if (holdTargetObject != null) {
+                    float holdMax = HOLD_TIME_MIN + (gameState.getAwareness()
+                            / (float) GameState.MAX_AWARENESS) * (HOLD_TIME_MAX - HOLD_TIME_MIN);
+                    holdTimer += delta;
+                    if (holdTimer >= holdMax) {
+                        holdTimer = 0f;
+                        pendingRevealObject = holdTargetObject;
+                        revealTimer = REVEAL_DURATION;
+                        holdTargetObject = null;
+                    }
+                }
+            } else {
+                // Cursor left the hotspot entirely — reset
+                holdTargetObject = null;
+                holdTimer = 0f;
+            }
+        }
+
+        // --- REVEAL TIMER ---
+        if (pendingRevealObject != null) {
+            revealTimer -= delta;
+            if (revealTimer <= 0f) {
+                String obj = pendingRevealObject;
+                pendingRevealObject = null;
+                handleExamine(obj);
+            }
+        }
+
+        // --- ENTITY PULL UPDATE ---
+        pullTimer += delta;
+        if (!pullActive && pullTimer >= PULL_INTERVAL && gameState.getAwareness() >= 20) {
+            pullTimer = 0f;
+            pullActive = true;
+            pullActiveTimer = 0f;
+            float angle = com.badlogic.gdx.math.MathUtils.random(0f, 360f)
+                    * com.badlogic.gdx.math.MathUtils.degreesToRadians;
+            float strength = PULL_MAX * (gameState.getAwareness() / (float) GameState.MAX_AWARENESS);
+            pullOffsetX = com.badlogic.gdx.math.MathUtils.cos(angle) * strength;
+            pullOffsetY = com.badlogic.gdx.math.MathUtils.sin(angle) * strength;
+        }
+        if (pullActive) {
+            pullActiveTimer += delta;
+            if (pullActiveTimer >= PULL_DURATION) {
+                pullActive = false;
+                pullOffsetX = 0f;
+                pullOffsetY = 0f;
+            }
+        }
+
+        // --- AMBIENT NARRATOR CHATTER ---
+        if (!textPanel.isVisible() && !gameState.isGameOver() && !gameState.isGameWon()
+                && !documentGame.isActive()) {
+            ambientNarratorTimer -= delta;
+            if (ambientNarratorTimer <= 0f) {
+                // Alternate between environmental cues and warnings; warnings skew later game
+                String line;
+                int awareness = gameState.getAwareness();
+                if (awareness >= 40 && MathUtils.random() < 0.4f) {
+                    line = narratorSystem.getWarning();
+                } else {
+                    line = narratorSystem.getEnvironmentalCue();
+                }
+                showNotification(line);
+                // Next line fires in 20–40 seconds (shrinks at high awareness)
+                float base = 20f - (awareness / (float) GameState.MAX_AWARENESS) * 8f;
+                ambientNarratorTimer = base + MathUtils.random(0f, 20f);
+            }
+        }
+
         // Advance notification timer; pop next queued notification when current expires
         if (currentNotif != null) {
             notifTimer -= delta;
@@ -2307,10 +2474,18 @@ public class GameScreen implements Screen {
 
         // Draw room background
         Texture roomTex = roomTextures.get(currentRoom.getId());
-        if (currentRoom.getId() == Room.RoomID.KITCHEN
-                && kitchenWithoutTapeTex != null
-                && gameState.hasTape(Tape.TAPE_MARGARET_INTERVIEW)) {
-            roomTex = kitchenWithoutTapeTex;
+        if (currentRoom.getId() == Room.RoomID.KITCHEN && kitchenWithoutTapeTex != null) {
+            boolean tapeRevealed = "kitchen_floor".equals(pendingRevealObject);
+            roomTex = tapeRevealed ? roomTextures.get(Room.RoomID.KITCHEN) : kitchenWithoutTapeTex;
+        }
+        if (currentRoom.getId() == Room.RoomID.PARLOR && parlorWithoutBriefcaseTex != null) {
+            boolean briefcaseRevealed = "briefcase".equals(pendingRevealObject);
+            roomTex = briefcaseRevealed ? roomTextures.get(Room.RoomID.PARLOR) : parlorWithoutBriefcaseTex;
+        }
+        if (currentRoom.getId() == Room.RoomID.STUDY && studyWithoutTapeTex != null) {
+            boolean studyRevealed = "under_desk".equals(pendingRevealObject)
+                    || "bookshelves".equals(pendingRevealObject);
+            roomTex = studyRevealed ? roomTextures.get(Room.RoomID.STUDY) : studyWithoutTapeTex;
         }
         if (currentRoom.getId() == Room.RoomID.JAMES_ROOM
                 && jamesClosedTex != null
@@ -2320,10 +2495,14 @@ public class GameScreen implements Screen {
         if (currentRoom.getId() == Room.RoomID.GROUNDSKEEPER_SHED) {
             boolean tapeTaken  = gameState.hasTape(Tape.TAPE_DANIEL_INTERVIEW);
             boolean bootsTaken = gameState.hasEvidence(Evidence.MUDDY_BOOTS);
-            if (!tapeTaken && !bootsTaken && shedTapeBoots     != null) roomTex = shedTapeBoots;
-            else if (!tapeTaken && bootsTaken && shedTapeNoBoots  != null) roomTex = shedTapeNoBoots;
-            else if (tapeTaken  && !bootsTaken && shedNoTapeBoots != null) roomTex = shedNoTapeBoots;
-            else if (tapeTaken  && bootsTaken && shedNoTapeNoBoots != null) roomTex = shedNoTapeNoBoots;
+            boolean tapeRevealed  = "logbook".equals(pendingRevealObject);
+            boolean bootsRevealed = "shelf".equals(pendingRevealObject);
+            if (tapeRevealed && !tapeTaken && shedTapeBoots != null)        roomTex = shedTapeBoots;
+            else if (bootsRevealed && !bootsTaken && shedTapeBoots != null) roomTex = shedTapeBoots;
+            else if (tapeTaken && bootsTaken && shedNoTapeNoBoots != null)  roomTex = shedNoTapeNoBoots;
+            else if (tapeTaken && shedNoTapeBoots != null)                  roomTex = shedNoTapeBoots;
+            else if (bootsTaken && shedTapeNoBoots != null)                 roomTex = shedTapeNoBoots;
+            else if (shedNoTapeNoBoots != null)                             roomTex = shedNoTapeNoBoots;
         }
         if (currentRoom.getId() == Room.RoomID.MARGARET_ROOM) {
             boolean tapeTaken = gameState.hasTape(Tape.TAPE_MARGARET_ACCOUNT);
@@ -2366,7 +2545,43 @@ public class GameScreen implements Screen {
             batch.draw(roomTex, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
         }
 
+        // --- DARKNESS MULTIPLY MASK ---
+        // Render a warm-circle-on-black to the lights FBO, then multiply it over the room.
+        // room * white(center) = room visible; room * black(edges) = darkness.
+        if (!gameState.isGameOver() && !gameState.isGameWon() && spotlightTexture != null) {
+            int aw = gameState.getAwareness();
+            float maxAw = (float) GameState.MAX_AWARENESS;
+            float lightRadius = 220f - (aw / maxAw) * 150f; // 220px → 70px
+            float lightSize   = lightRadius * 2f;
+            float lightX = (cursorGameX + pullOffsetX) - lightSize / 2f;
+            float lightY = (cursorGameY + pullOffsetY) - lightSize / 2f;
 
+            // 1. Flush room draw to screen
+            batch.end();
+
+            // 2. Render spotlight (warm circle on black) into lightsBuffer
+            lightsBuffer.begin();
+            Gdx.gl.glViewport(0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
+            Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
+            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+            batch.setProjectionMatrix(game.camera.combined);
+            batch.begin();
+            batch.setColor(Color.WHITE);
+            batch.draw(spotlightTexture, lightX, lightY, lightSize, lightSize);
+            batch.end();
+            lightsBuffer.end();
+
+            // 3. Apply lights buffer as multiply mask — reveals room only at cursor
+            viewport.apply();
+            batch.setProjectionMatrix(game.camera.combined);
+            batch.begin();
+            batch.setBlendFunction(GL20.GL_ZERO, GL20.GL_SRC_COLOR);
+            Texture lightTex = lightsBuffer.getColorBufferTexture();
+            // FBO is stored bottom-up; draw with negative height to flip Y
+            batch.draw(lightTex, 0, DSAGame.SCREEN_HEIGHT, DSAGame.SCREEN_WIDTH, -DSAGame.SCREEN_HEIGHT);
+            batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+            batch.setColor(Color.WHITE);
+        }
 
         // Draw room name with text shadow (top-left, fades out)
         float titleAlpha = MathUtils.clamp(1f - (titleFadeTimer - TITLE_FADE_DURATION), 0f, 1f);
@@ -2384,46 +2599,7 @@ public class GameScreen implements Screen {
             titleFont.setColor(Color.WHITE);
         }
 
-        // Draw tooltip
-        if (!currentTooltip.isEmpty() && !textPanel.isVisible()) {
-            layout.setText(font, currentTooltip);
-            touchPos.set(Gdx.input.getX(), Gdx.input.getY());
-            viewport.unproject(touchPos);
-
-            float tooltipW = layout.width + 16;
-            float tooltipH = layout.height + 12;
-            float tooltipX = touchPos.x + 15;
-            float tooltipY = touchPos.y + 15;
-
-            // Clamp to screen bounds
-            if (tooltipX + tooltipW > DSAGame.SCREEN_WIDTH - 5) {
-                tooltipX = DSAGame.SCREEN_WIDTH - tooltipW - 5;
-            }
-            if (tooltipY + tooltipH > DSAGame.SCREEN_HEIGHT - 5) {
-                tooltipY = touchPos.y - tooltipH - 5;
-            }
-            if (tooltipX < 5)
-                tooltipX = 5;
-            if (tooltipY < 5)
-                tooltipY = 5;
-
-            // Dark teal-black background
-            batch.setColor(0.06f, 0.1f, 0.1f, 0.92f);
-            batch.draw(pixelTexture, tooltipX, tooltipY, tooltipW, tooltipH);
-
-            // Muted gold border
-            batch.setColor(0.6f, 0.55f, 0.35f, 0.8f);
-            batch.draw(pixelTexture, tooltipX, tooltipY, tooltipW, 1); // bottom
-            batch.draw(pixelTexture, tooltipX, tooltipY + tooltipH - 1, tooltipW, 1); // top
-            batch.draw(pixelTexture, tooltipX, tooltipY, 1, tooltipH); // left
-            batch.draw(pixelTexture, tooltipX + tooltipW - 1, tooltipY, 1, tooltipH); // right
-
-            // Cream text
-            batch.setColor(Color.WHITE);
-            font.setColor(0.95f, 0.93f, 0.85f, 1f);
-            font.draw(batch, currentTooltip, tooltipX + 8, tooltipY + tooltipH - 6);
-            font.setColor(Color.WHITE);
-        }
+        // Tooltips removed
 
         // Draw room description box — top-left, distinct slate style
         float descAlpha = MathUtils.clamp(1f - (descFadeTimer - DESC_FADE_DURATION), 0f, 1f);
@@ -2459,6 +2635,27 @@ public class GameScreen implements Screen {
         }
 
         batch.setColor(Color.WHITE);
+
+        // --- HOLD TIMER RING ---
+        if (holdTimer > 0f && holdTargetObject != null && !textPanel.isVisible()) {
+            float holdMax = HOLD_TIME_MIN + (gameState.getAwareness()
+                    / (float) GameState.MAX_AWARENESS) * (HOLD_TIME_MAX - HOLD_TIME_MIN);
+            float progress = holdTimer / holdMax;
+            float ringRadius = 24f;
+            int totalDots = 40;
+            int filledDots = (int) (totalDots * progress);
+            for (int i = 0; i < filledDots; i++) {
+                float angleDeg = (i * 360f / totalDots) - 90f;
+                float angleRad = angleDeg * com.badlogic.gdx.math.MathUtils.degreesToRadians;
+                float dotX = cursorGameX + ringRadius
+                        * com.badlogic.gdx.math.MathUtils.cos(angleRad) - 2f;
+                float dotY = cursorGameY + ringRadius
+                        * com.badlogic.gdx.math.MathUtils.sin(angleRad) - 2f;
+                batch.setColor(0.95f, 0.85f, 0.5f, 0.7f + 0.3f * progress);
+                batch.draw(pixelTexture, dotX, dotY, 4f, 4f);
+            }
+            batch.setColor(Color.WHITE);
+        }
 
         // Draw awareness meter
         awarenessMeter.render(batch, font, awarenessSystem, gameState.getAwareness());
@@ -2637,18 +2834,15 @@ public class GameScreen implements Screen {
         textPanel.showDialogue("The Narrator",
                 "[A voice fills your mind{p} -- not from any direction,{p} but from everywhere at once.{p} Like a memory that isn't yours.]{P}\n\n"
                         +
-                        "\"Ah.{p} You came.{p} Good.{P} I've been waiting for someone " +
+                        "\"Ah.{p} You found it.{p} Good.{P} I've been waiting for someone " +
                         "who would listen.{p} My name doesn't matter{p} -- what matters is what happened " +
-                        "in this house.{p} I'll guide you as best I can.{p} Look at everything.{p} " +
-                        "Touch nothing carelessly.{P}\n\n" +
-                        "Trust what you see.{p} Question what you're told.{p} And whatever you do...{P} " +
-                        "keep your conclusions to yourself.\"{P}\n\n" +
+                        "in this house.{P}\n\n" +
+                        "Move your light carefully.{p} Linger on what draws you.{p} " +
+                        "The house will show you things{p} if you give it time.\"{P}\n\n" +
                         "---\n\n" +
-                        "The main entrance of Vance Manor.{p} Dust motes float in dim light from a grand " +
-                        "chandelier.{p} The air smells of old wood and something faintly metallic.{p} Doors " +
-                        "lead deeper into the house.\n\n" +
-                        "Somewhere in this manor, a murder went unsolved.{p} The evidence is still here.{p} " +
-                        "So are the secrets.", new ArrayList<>());
+                        "Vance Manor.{p} Abandoned for decades.{p} " +
+                        "Dust on every surface.{p} Cold air that shouldn't be this cold.{P}\n\n" +
+                        "Someone was here before you.", new ArrayList<>());
         panelMode = PanelMode.TEXT;
     }
 
@@ -2676,6 +2870,10 @@ public class GameScreen implements Screen {
                 tex.dispose();
         if (kitchenWithoutTapeTex != null)
             kitchenWithoutTapeTex.dispose();
+        if (parlorWithoutBriefcaseTex != null)
+            parlorWithoutBriefcaseTex.dispose();
+        if (studyWithoutTapeTex != null)
+            studyWithoutTapeTex.dispose();
         if (jamesClosedTex != null)
             jamesClosedTex.dispose();
         if (shedTapeBoots != null)    shedTapeBoots.dispose();
@@ -2707,6 +2905,8 @@ public class GameScreen implements Screen {
         if (mNoTapeTopOpenNoKitBotOpen != null)
             mNoTapeTopOpenNoKitBotOpen.dispose();
         if (backButtonTex != null) backButtonTex.dispose();
+        if (spotlightTexture != null) spotlightTexture.dispose();
+        if (lightsBuffer != null) lightsBuffer.dispose();
         pixelTexture.dispose();
         textPanel.dispose();
         awarenessMeter.dispose();
