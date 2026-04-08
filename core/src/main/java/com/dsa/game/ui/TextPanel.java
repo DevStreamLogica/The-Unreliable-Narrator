@@ -1,5 +1,6 @@
 package com.dsa.game.ui;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -27,6 +28,7 @@ public class TextPanel {
     private float scrollOffset = 0;
     private final List<TextButton> actionButtons = new ArrayList<>();
     private TextButton closeButton;
+    private boolean closeButtonVisible = true;
 
     // Typewriter animation state
     private float revealTimer = 0;
@@ -61,6 +63,7 @@ public class TextPanel {
     private static final float DLG_HEADER_H    = 32f;
     private static final float DLG_PADDING     = 14;
     private static final int   DLG_LINE_CHARS  = 90;
+    private static final int   DLG_LINE_CHARS_CUSTOM = 130;
 
     // ── Dialogue state ──────────────────────────────────────────────────────
     private boolean dialogueMode = false;
@@ -93,9 +96,34 @@ public class TextPanel {
     private Texture panelTexture;
     private Texture borderTexture;
     private Texture headerTexture;
+    private Texture customDialogueFrameTexture;
+    private Texture customDialogueNameplateTexture;
+    private Texture customDialogueNextTexture;
+    private float customSpeakerOffsetX = 28f;
+    private float customSpeakerOffsetY = 16f;
+    private float customTextOffsetX = 64f;
+    private float customTextOffsetY = 12f;
 
     public TextPanel() {
         generateTextures();
+        try {
+            if (Gdx.files.internal("ui/textbox_frame.png").exists()) {
+                customDialogueFrameTexture = new Texture(Gdx.files.internal("ui/textbox_frame.png"));
+                customDialogueFrameTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+            if (Gdx.files.internal("ui/textbox_nameplate.png").exists()) {
+                customDialogueNameplateTexture = new Texture(Gdx.files.internal("ui/textbox_nameplate.png"));
+                customDialogueNameplateTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+            if (Gdx.files.internal("ui/textbox_next.png").exists()) {
+                customDialogueNextTexture = new Texture(Gdx.files.internal("ui/textbox_next.png"));
+                customDialogueNextTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } catch (Exception ignored) {
+            customDialogueFrameTexture = null;
+            customDialogueNameplateTexture = null;
+            customDialogueNextTexture = null;
+        }
         closeButton = new TextButton("X",
             PANEL_X + PANEL_WIDTH - CLOSE_SIZE - 10,
             PANEL_Y + PANEL_HEIGHT - CLOSE_SIZE - 10,
@@ -286,7 +314,12 @@ public class TextPanel {
             i++;
         }
         displayText = display.toString();
-        int wrapChars = dialogueMode ? DLG_LINE_CHARS : MAX_LINE_CHARS;
+        int wrapChars;
+        if (dialogueMode) {
+            wrapChars = (customDialogueFrameTexture != null) ? DLG_LINE_CHARS_CUSTOM : DLG_LINE_CHARS;
+        } else {
+            wrapChars = MAX_LINE_CHARS;
+        }
         cachedWrapped = wordWrap(displayText, wrapChars);
     }
 
@@ -348,6 +381,8 @@ public class TextPanel {
             revealedChars = target;
         }
     }
+
+    public boolean isRevealComplete() { return revealComplete; }
 
     public void skipReveal() {
         text = displayText;
@@ -438,7 +473,7 @@ public class TextPanel {
             }
         }
 
-        closeButton.render(batch, font);
+        if (closeButtonVisible) closeButton.render(batch, font);
 
         font.setColor(Color.WHITE);
         batch.setColor(Color.WHITE);
@@ -449,40 +484,69 @@ public class TextPanel {
         float py = DLG_PANEL_Y;
         float pw = DLG_PANEL_WIDTH;
         float ph = DLG_HEIGHT;
+        boolean usingCustom = (customDialogueFrameTexture != null);
+        float panelY = usingCustom ? (py - 8f) : py;
+        float panelH = usingCustom ? (ph - 24f) : ph;
 
         batch.setColor(Color.WHITE);
 
-        // Body background
-        batch.draw(panelTexture, px, py, pw, ph - DLG_HEADER_H);
-
-        // Header background (lighter)
-        batch.draw(headerTexture, px, py + ph - DLG_HEADER_H, pw, DLG_HEADER_H);
-
-        // Border
-        batch.draw(borderTexture, px, py + ph - 2, pw, 2);
-        batch.draw(borderTexture, px, py, pw, 2);
-        batch.draw(borderTexture, px, py, 2, ph);
-        batch.draw(borderTexture, px + pw - 2, py, 2, ph);
-        // Separator line below header
-        batch.draw(borderTexture, px, py + ph - DLG_HEADER_H, pw, 1);
+        if (usingCustom) {
+            batch.draw(customDialogueFrameTexture, px, panelY, pw, panelH);
+        } else {
+            // Fallback to default generated panel
+            batch.draw(panelTexture, px, py, pw, ph - DLG_HEADER_H);
+            batch.draw(headerTexture, px, py + ph - DLG_HEADER_H, pw, DLG_HEADER_H);
+            batch.draw(borderTexture, px, py + ph - 2, pw, 2);
+            batch.draw(borderTexture, px, py, pw, 2);
+            batch.draw(borderTexture, px, py, 2, ph);
+            batch.draw(borderTexture, px + pw - 2, py, 2, ph);
+            batch.draw(borderTexture, px, py + ph - DLG_HEADER_H, pw, 1);
+        }
 
         // Speaker name in header
         if (speakerName != null) {
             GlyphLayout gl = new GlyphLayout(font, speakerName);
             Color nameColor = SPEAKER_COLORS.getOrDefault(speakerName, new Color(0.95f, 0.90f, 0.70f, 1f));
+            if (usingCustom && customDialogueNameplateTexture != null) {
+                float nameW = 200f;
+                float nameH = 42f;
+                float nameX = px + 12f;
+                float nameY = panelY + panelH - 30f;
+                batch.draw(customDialogueNameplateTexture, nameX, nameY, nameW, nameH);
+            }
             font.setColor(nameColor);
-            font.draw(batch, speakerName,
-                px + DLG_PADDING,
-                py + ph - DLG_HEADER_H + (DLG_HEADER_H + gl.height) / 2f);
+            float speakerY = usingCustom
+                    ? panelY + panelH - 18f
+                    : py + ph - DLG_HEADER_H + (DLG_HEADER_H + gl.height) / 2f;
+            float speakerX = px + DLG_PADDING;
+            if (usingCustom) {
+                speakerX += customSpeakerOffsetX;
+                speakerY += customSpeakerOffsetY;
+            }
+            font.draw(batch, speakerName, speakerX, speakerY);
         }
 
         // Dialogue text
         float textX      = px + DLG_PADDING;
-        float textStartY = py + ph - DLG_HEADER_H - DLG_PADDING - 6;
-        float bottomNextY = py + DLG_PADDING + BUTTON_HEIGHT + BUTTON_SPACING;
+        float textStartY = usingCustom
+                ? panelY + panelH - 58f
+                : py + ph - DLG_HEADER_H - DLG_PADDING - 6;
+        float bottomNextY = usingCustom
+                ? panelY + DLG_PADDING + BUTTON_HEIGHT + BUTTON_SPACING + 16f
+                : py + DLG_PADDING + BUTTON_HEIGHT + BUTTON_SPACING;
+        if (usingCustom) {
+            textX += customTextOffsetX;
+            textStartY += customTextOffsetY;
+        }
 
-        font.setColor(new Color(0.9f, 0.9f, 0.85f, 1));
-        drawRevealedLines(batch, font, textX, textStartY, py + ph - DLG_HEADER_H - 4, bottomNextY);
+        Color dialogueTextColor = usingCustom
+                ? new Color(0.16f, 0.16f, 0.16f, 1f)
+                : new Color(0.9f, 0.9f, 0.85f, 1);
+        font.setColor(dialogueTextColor);
+        float topClip = usingCustom
+                ? panelY + panelH - 46f
+                : py + ph - DLG_HEADER_H - 4;
+        drawRevealedLines(batch, font, textX, textStartY, topClip, bottomNextY);
 
         // CTC (click-to-continue) blinking indicator when text is fully revealed
         if (revealComplete) {
@@ -505,14 +569,31 @@ public class TextPanel {
             // but still show it if there are no after-buttons on last page)
             boolean showNext = !isLastPage || actionButtons.isEmpty();
             if (showNext) {
-                nextButton.setPosition(px + pw - 120 - DLG_PADDING, py + DLG_PADDING);
-                nextButton.getBounds().width  = 110;
-                nextButton.getBounds().height = BUTTON_HEIGHT;
-                nextButton.render(batch, font);
+                float nextY = usingCustom ? (panelY + DLG_PADDING) : (py + DLG_PADDING);
+                float nextX = px + pw - 120 - DLG_PADDING;
+                if (usingCustom && customDialogueNextTexture != null) {
+                    float nextW = 96f;
+                    float nextH = 35f;
+                    nextX = px + pw - nextW - DLG_PADDING - 6f;
+                    batch.draw(customDialogueNextTexture, nextX, nextY, nextW, nextH);
+                    nextButton.setPosition(nextX, nextY);
+                    nextButton.getBounds().width = nextW;
+                    nextButton.getBounds().height = nextH;
+                } else {
+                    nextButton.setPosition(nextX, nextY);
+                    nextButton.getBounds().width  = 110;
+                    nextButton.getBounds().height = BUTTON_HEIGHT;
+                    nextButton.render(batch, font);
+                }
             }
         }
 
-        closeButton.render(batch, font);
+        if (closeButtonVisible) {
+            if (usingCustom) {
+                closeButton.setPosition(px + pw - CLOSE_SIZE - 10, panelY + panelH - CLOSE_SIZE - 10);
+            }
+            closeButton.render(batch, font);
+        }
 
         font.setColor(Color.WHITE);
         batch.setColor(Color.WHITE);
@@ -531,7 +612,7 @@ public class TextPanel {
         float pw = dialogueMode ? DLG_PANEL_WIDTH : PANEL_WIDTH;
         float ph = dialogueMode ? DLG_HEIGHT : PANEL_HEIGHT;
 
-        if (closeButton.contains(x, y)) {
+        if (closeButtonVisible && closeButton.contains(x, y)) {
             hide();
             return "close";
         }
@@ -577,7 +658,7 @@ public class TextPanel {
 
     public void handleHover(float x, float y) {
         if (!visible) return;
-        closeButton.checkHover(x, y);
+        if (closeButtonVisible) closeButton.checkHover(x, y);
         for (TextButton button : actionButtons) {
             button.checkHover(x, y);
         }
@@ -602,7 +683,9 @@ public class TextPanel {
     public static void setCharsPerSecond(float speed) { charsPerSecond = Math.max(10f, Math.min(200f, speed)); }
 
     public boolean isVisible() { return visible; }
+    public void setCloseButtonVisible(boolean visible) { this.closeButtonVisible = visible; }
     public boolean isDialogueMode() { return dialogueMode; }
+    public boolean hasCustomDialogueTexture() { return customDialogueFrameTexture != null; }
     public String getSpeaker() { return speakerName; }
     public void setSpeaker(String speaker) { this.speakerName = speaker; }
     public int getCurrentPage() { return currentPage; }
@@ -647,9 +730,36 @@ public class TextPanel {
         return result.toString();
     }
 
+    public void nudgeCustomSpeaker(float dx, float dy) {
+        customSpeakerOffsetX += dx;
+        customSpeakerOffsetY += dy;
+    }
+
+    public void nudgeCustomText(float dx, float dy) {
+        customTextOffsetX += dx;
+        customTextOffsetY += dy;
+    }
+
+    public void resetCustomLayoutOffsets() {
+        customSpeakerOffsetX = 0f;
+        customSpeakerOffsetY = 0f;
+        customTextOffsetX = 0f;
+        customTextOffsetY = 0f;
+    }
+
+    public String getCustomLayoutDebugString() {
+        return String.format(
+                "speakerOffset=(%.1f, %.1f) textOffset=(%.1f, %.1f)",
+                customSpeakerOffsetX, customSpeakerOffsetY, customTextOffsetX, customTextOffsetY
+        );
+    }
+
     public void dispose() {
         if (panelTexture  != null) panelTexture.dispose();
         if (borderTexture != null) borderTexture.dispose();
         if (headerTexture != null) headerTexture.dispose();
+        if (customDialogueFrameTexture != null) customDialogueFrameTexture.dispose();
+        if (customDialogueNameplateTexture != null) customDialogueNameplateTexture.dispose();
+        if (customDialogueNextTexture != null) customDialogueNextTexture.dispose();
     }
 }

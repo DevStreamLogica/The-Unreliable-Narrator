@@ -11,7 +11,7 @@ public class RoomDescriptions {
 
     static {
         EXAMINABLE_OBJECTS.put(Room.RoomID.STUDY, Arrays.asList(
-            "desk", "drawers", "papers", "bookshelves", "window", "fireplace", "poker", "ashes", "under_desk"
+            "desk", "drawers", "papers", "bookshelves", "window", "fireplace", "ashes", "under_desk"
         ));
         EXAMINABLE_OBJECTS.put(Room.RoomID.PARLOR, Arrays.asList(
             "grandfather_clock", "briefcase", "fireplace"
@@ -107,7 +107,6 @@ public class RoomDescriptions {
             case "bookshelves": return "Bookshelves";
             case "window": return "Window";
             case "fireplace": return "Fireplace";
-            case "poker": return "Fireplace Poker";
             case "ashes": return "Fireplace Ashes";
             case "under_desk": return "Under the Desk";
             case "grandfather_clock": return "Grandfather Clock";

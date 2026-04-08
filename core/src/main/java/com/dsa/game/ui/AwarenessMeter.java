@@ -1,6 +1,5 @@
 package com.dsa.game.ui;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -13,8 +12,8 @@ import com.dsa.game.systems.AwarenessSystem;
 
 public class AwarenessMeter {
 
-    private static final float STRIP_HEIGHT = 4;
-    private static final float HOVER_ZONE = 20;
+    private static final float STRIP_HEIGHT = 8;
+    private static final float HOVER_ZONE = 28;
 
     private static final Color[] COLORS = {
         new Color(0.2f, 0.7f, 0.2f, 1),   // green

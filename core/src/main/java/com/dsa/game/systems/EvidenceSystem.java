@@ -28,7 +28,6 @@ public class EvidenceSystem {
         if (state.hasEvidence(Evidence.WILL_COPY)) count++;
         if (state.hasEvidence(Evidence.TORN_LETTER)) count++;
         if (state.hasEvidence(Evidence.BLACKMAIL_NOTE)) count++; // James planted it to frame Margaret
-        if (state.hasEvidence(Evidence.FIREPLACE_POKER)) count++; // actual murder weapon
         if (state.hasTape(Tape.TAPE_ARGUMENT)) count++;
         if (state.hasTape(Tape.TAPE_JAMES_INTERVIEW)) count++;
         return count;

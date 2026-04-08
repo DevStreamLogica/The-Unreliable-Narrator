@@ -35,6 +35,8 @@ public class MazeMinigame implements Screen {
     private static final float SHADOW_SPEED          = TILE * 1.1f;
     private static final float END_DISPLAY_DUR       = 4.5f;
     private static final float WIN_DISPLAY_DUR       = 7f;    // longer: shows timeline
+    /** After loss, show +2 awareness briefly then restart the maze (no exit). */
+    private static final float LOSE_RESTART_DELAY    = 2.0f;
     private static final int   MAX_MONSTER_CATCHES   = 3;
     private static final int   DIR_COUNT             = 8;
     private static final int   DIR_FRAMES            = 8;
@@ -43,7 +45,6 @@ public class MazeMinigame implements Screen {
     private static final float MONSTER_SPEED         = 155f;
     private static final float MONSTER_CATCH_RADIUS  = TILE * 1.0f;
     private static final float MONSTER_ANIM_DUR      = 0.32f;
-    private static final float ACT_BREAK_DUR         = 4.5f;
     private static final float DEAD_END_LIE_DUR      = 2.2f;
 
     // ── Dynamic maze size ────────────────────────────────────────────────────
@@ -56,6 +57,8 @@ public class MazeMinigame implements Screen {
         final boolean trueIsLeft;
         final String  leftStatement;
         final String  rightStatement;
+        final String  leftMarked;
+        final String  rightMarked;
         /** The false statement shown when the player enters the wrong arm. */
         final String  lie;
         int     junctionRow  = 0;
@@ -68,6 +71,36 @@ public class MazeMinigame implements Screen {
             this.leftStatement  = left;
             this.rightStatement = right;
             this.lie            = trueIsLeft ? right : left;
+            String[] m    = markDiff(left, right);
+            this.leftMarked  = m[0];
+            this.rightMarked = m[1];
+        }
+
+        private static String[] markDiff(String left, String right) {
+            String[] lw = left.split(" ", -1);
+            String[] rw = right.split(" ", -1);
+            int minLen = Math.min(lw.length, rw.length);
+            int start = 0;
+            while (start < minLen && lw[start].equals(rw[start])) start++;
+            int lEnd = lw.length - 1, rEnd = rw.length - 1;
+            while (lEnd > start && rEnd > start && lw[lEnd].equals(rw[rEnd])) {
+                lEnd--; rEnd--;
+            }
+            return new String[]{
+                buildMarked(lw, start, lEnd),
+                buildMarked(rw, start, rEnd)
+            };
+        }
+
+        private static String buildMarked(String[] words, int from, int to) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < words.length; i++) {
+                if (i == from) sb.append("[#7A1200FF]");
+                sb.append(words[i]);
+                if (i == to)   sb.append("[]");
+                if (i < words.length - 1) sb.append(" ");
+            }
+            return sb.toString();
         }
     }
 
@@ -84,8 +117,13 @@ public class MazeMinigame implements Screen {
     private Fork[] forks;
 
     // ── State enum ────────────────────────────────────────────────────────────
-    private enum Phase { INSTRUCTIONS, PLAYING, ACT_BREAK, WIN, LOSE }
-    private Phase phase = Phase.INSTRUCTIONS;
+    private enum Phase { NARRATOR_INTRO, PLAYING, WIN, LOSE }
+    private Phase phase = Phase.PLAYING;
+
+    static boolean introShown = false;
+
+    /** Called by DemoScreen on completion so the narrator intro is not repeated. */
+    public static void markIntroShown() { introShown = true; }
 
     // ── Dependencies ──────────────────────────────────────────────────────────
     private final DSAGame   game;
@@ -132,6 +170,25 @@ public class MazeMinigame implements Screen {
     private Texture floorTex;
     private Texture exitTex;
     private Texture deadEndTex;
+    private Texture parchmentTex;
+    private com.badlogic.gdx.audio.Music mazeMusic;
+    private com.badlogic.gdx.audio.Music victoryMusic;
+    /** True when using a dedicated maze track with custom seamless restart; false for looped fallbacks. */
+    private boolean mazeMusicSeamlessLoop = false;
+    /** Paused {@link DSAGame#bgMusic} while the maze runs so two tracks never stack. */
+    private boolean pausedMainBgm         = false;
+    private float   musicTimer         = 0f;
+    private boolean musicStarted       = false;
+    private float   musicElapsed       = 0f;  // time since music last started
+    private float   musicDuration      = -1f; // learned after first full playthrough
+    private boolean musicLoopTriggered = false;
+
+    // ── Parchment transition ──────────────────────────────────────────────────
+    private static final float PARCH_FADE_DUR = 0.45f; // seconds for fade in/out
+    private Fork    lastActiveFork = null;
+    private float   parchAlpha     = 0f;
+    private boolean parchFadingIn  = false;
+    private float   lastDelta      = 0f;
 
     // ── Arm monsters ─────────────────────────────────────────────────────────
     private ArmMonster[] armMonsters;
@@ -154,11 +211,6 @@ public class MazeMinigame implements Screen {
 
     // ── Act break ─────────────────────────────────────────────────────────────
     /** Fork index at which to trigger the act break (-1 = no break). */
-    private int    actBreakAfterFork = -1;
-    private String actTitle          = "";
-    private String actNarration      = "";
-    private float  actBreakTimer     = 0f;
-    private boolean actBreakUsed     = false;
 
     // ── Dead-end lie flash ────────────────────────────────────────────────────
     private String deadEndLieText  = "";
@@ -172,14 +224,19 @@ public class MazeMinigame implements Screen {
 
     // ── End screen ────────────────────────────────────────────────────────────
     private float  endTimer = 0f;
-    private String winText;
-    private String loseText;
 
-    // ── Instruction screen ────────────────────────────────────────────────────
-    private String   instructionHook;
-    private String[] instructionObjective;
-    private String[] instructionAvoid;
-    private float    pulseTimer = 0f;
+    // ── Parchment layout (tuned via debug) ───────────────────────────────────
+    private static final float PARCH_IMG_OFF_X = -58f;
+    private static final float PARCH_IMG_OFF_Y = -33f;
+    private static final float PARCH_IMG_W     = 525f;
+    private static final float PARCH_IMG_H     = 273f;
+    private static final float PARCH_PANEL_W   = 400f;
+    private static final float PARCH_PANEL_YOFF = 8f;
+    // Text areas (screen-relative to camLeft/camBot, tuned via rect debug)
+    private static final float TXT_L_X = 122f; private static final float TXT_L_Y = 68f;
+    private static final float TXT_L_W = 209f; private static final float TXT_L_H = 99f;
+    private static final float TXT_R_X = 955f; private static final float TXT_R_Y = 73f;
+    private static final float TXT_R_W = 215f; private static final float TXT_R_H = 92f;
 
     // =========================================================================
 
@@ -195,8 +252,6 @@ public class MazeMinigame implements Screen {
         timeline      = new String[forks.length];
         timelineRanks = new int[forks.length];
         buildMaze();
-        setupNarratorTexts();
-        setupInstructions();
     }
 
     // ── Initialisation ────────────────────────────────────────────────────────
@@ -262,134 +317,137 @@ public class MazeMinigame implements Screen {
     private void setupForks() {
         switch (tape) {
 
+            // ── TAPE 1: The Argument ────────────────────────────────────────
+            case TAPE_ARGUMENT:
+                forks = new Fork[]{
+                    new Fork(true,
+                        "Harold confronted James about money missing from the estate accounts",
+                        "Harold confronted James about losses in the estate accounts"),
+                    new Fork(true,
+                        "The argument was about fifty thousand pounds taken without authorisation",
+                        "The argument was about fifty thousand pounds invested without authorisation"),
+                    new Fork(true,
+                        "Harold said the will would be changed at nine o'clock the next morning",
+                        "Harold said the will could be changed at nine o'clock the next morning"),
+                    new Fork(true,
+                        "Harold knew Daniel had been moving money through the estate accounts",
+                        "Harold suspected Daniel had been moving money through the estate accounts"),
+                    new Fork(true,
+                        "Harold said both James and Daniel would be dismissed at nine AM",
+                        "Harold said James alone would be dismissed at nine AM"),
+                };
+                break;
+
             // ── TAPE 2: James Vance Interview ───────────────────────────────
             case TAPE_JAMES_INTERVIEW:
-                actBreakAfterFork = 1;
-                actTitle          = "ACT II \u2014 THE ALIBI";
-                actNarration      = "He called it a loan.\nThe will was being signed at nine the next morning.";
                 forks = new Fork[]{
                     new Fork(false,
-                        "James says it was a calm business discussion",
-                        "Witnesses heard shouting from the study"),
+                        "James described a heated but private discussion with his father",
+                        "James described a calm and private discussion with his father"),
                     new Fork(false,
-                        "James had no knowledge of missing funds",
-                        "James took fifty thousand pounds \u2014 called it a loan"),
+                        "James said he had no knowledge of the missing fifty thousand pounds",
+                        "James said he had borrowed the fifty thousand pounds with his father's knowledge"),
                     new Fork(true,
-                        "No one can confirm James was in his room all night",
-                        "James says he went to his room at eleven-thirty"),
+                        "No one could place James in his room after eleven-thirty",
+                        "James could place himself in his room after eleven-thirty"),
                     new Fork(true,
-                        "The will was being changed at nine AM the next morning",
-                        "James claims he did not know about the will changes"),
+                        "James learned the will was being changed the following morning",
+                        "James claimed he did not know the will was being changed"),
                     new Fork(true,
-                        "James demanded a solicitor the moment money was mentioned",
-                        "James cooperated fully and answered every question"),
+                        "James asked for a solicitor when the finances were mentioned",
+                        "James asked for a solicitor when the murder was mentioned"),
                 };
                 break;
 
             // ── TAPE 3: Daniel Hobbs Interview ──────────────────────────────
             case TAPE_DANIEL_INTERVIEW:
-                actBreakAfterFork = 2;
-                actTitle          = "ACT II \u2014 THE SLIP";
-                actNarration      = "Twenty thousand pounds. Fifteen years of loyalty to the wrong man.\nAnd the logbook entry that was never written.";
                 forks = new Fork[]{
                     new Fork(true,
                         "November 15th has no entry in Daniel's logbook",
-                        "Daniel says he forgot to log it \u2014 it slipped his mind"),
+                        "November 15th has an incomplete entry in Daniel's logbook"),
                     new Fork(true,
-                        "Daniel deposited twenty thousand pounds on a groundskeeper's salary",
-                        "Daniel claims private gardening work paid for it"),
+                        "Twenty thousand pounds appeared in Daniel's account in a single deposit",
+                        "Twenty thousand pounds appeared in Daniel's account across several deposits"),
                     new Fork(true,
-                        "The entire household heard the argument. The carriage house is no excuse.",
-                        "Sound doesn't carry to the carriage house. Daniel heard nothing."),
+                        "The argument was audible from the carriage house",
+                        "The argument was not audible from the carriage house"),
                     new Fork(true,
-                        "Daniel said 'I was helping move\u2014' before correcting himself",
-                        "Daniel's account never changed or contradicted itself"),
+                        "Daniel said 'I was helping move\u2014' before stopping himself",
+                        "Daniel said 'I was helping move\u2014' then clarified he meant the furniture"),
                     new Fork(true,
                         "Moving a body down cellar stairs requires two people",
-                        "Harold could have died anywhere and been found in the cellar"),
+                        "Moving a body down cellar stairs requires one strong person"),
                     new Fork(true,
-                        "Daniel wouldn't look at Margaret or anyone the next morning",
-                        "Daniel was quiet by nature \u2014 he always kept to himself"),
+                        "Daniel avoided eye contact with everyone the morning after",
+                        "Daniel avoided eye contact with Margaret the morning after"),
                 };
                 break;
 
             // ── TAPE 4: Margaret Vance Interview ────────────────────────────
             case TAPE_MARGARET_INTERVIEW:
-                actBreakAfterFork = 1;
-                actTitle          = "ACT II \u2014 THE NIGHT";
-                actNarration      = "She heard the word 'tomorrow.'\nShe didn't know what it meant yet.";
                 forks = new Fork[]{
                     new Fork(true,
-                        "Dinner was tense \u2014 Father and Marcus argued all evening",
-                        "It was just a normal family dinner"),
+                        "Margaret said dinner was tense \u2014 her father and Marcus argued",
+                        "Margaret said dinner was quiet \u2014 her father and Marcus barely spoke"),
                     new Fork(true,
-                        "She heard 'the will' and 'tomorrow' during the argument",
-                        "She only heard anger, couldn't make out any words"),
+                        "Margaret heard her father say 'the will' and 'tomorrow morning'",
+                        "Margaret heard raised voices but could not make out the words"),
                     new Fork(false,
-                        "She was always nervous, always hearing things",
-                        "Two people whispering at midnight"),
+                        "Margaret heard one set of footsteps on the landing at midnight",
+                        "Margaret heard two voices on the landing at midnight"),
                     new Fork(true,
-                        "The footsteps went toward the study, then the cellar stairs",
-                        "She was too frightened to know which direction they went"),
+                        "The footsteps went toward the study, then toward the cellar stairs",
+                        "The footsteps went toward the study, then back toward the bedrooms"),
                     new Fork(true,
-                        "The dragging sounds came at two in the morning",
-                        "She fell asleep before she heard the dragging"),
+                        "Margaret heard dragging sounds at two in the morning",
+                        "Margaret heard dragging sounds just after midnight"),
                 };
                 break;
 
             // ── TAPE 5: Marcus Blackwood Interview ──────────────────────────
             case TAPE_MARCUS_INTERVIEW:
-                actBreakAfterFork = 1;
-                actTitle          = "ACT II \u2014 WHAT MARCUS SAW";
-                actNarration      = "Two hours alone in the parlor.\nLong enough to decide. Long enough to change your mind.";
                 forks = new Fork[]{
                     new Fork(true,
-                        "Marcus left at eleven. The hotel confirms 11:47.",
-                        "Marcus had no reason to harm Harold"),
+                        "Marcus left the manor at eleven. The hotel logged him at 11:47.",
+                        "Marcus left the manor at eleven. The hotel logged him at 12:47."),
                     new Fork(true,
-                        "Harold abandoned Marcus alone in the parlor for two hours",
-                        "Marcus and Harold talked through the entire evening"),
+                        "Harold left Marcus alone in the parlor for two hours",
+                        "Harold left Marcus alone in the parlor for twenty minutes"),
                     new Fork(false,
-                        "He came voluntarily. Innocent men do that.",
-                        "He heard 'money' and 'betrayal' \u2014 Harold's voice carried"),
+                        "Marcus said he heard nothing of the argument from the parlor",
+                        "Marcus said he heard Harold's voice through the study door"),
                     new Fork(true,
-                        "He saw James storm past after the argument \u2014 shaken",
-                        "The alibi is confirmed. Move on."),
+                        "Marcus saw James leave the study looking shaken",
+                        "Marcus saw James leave the study looking composed"),
                     new Fork(true,
-                        "He saw a light in Charles's window as he drove away at eleven",
-                        "The manor was dark when Marcus left"),
+                        "Marcus saw a light in Charles's window as he drove away",
+                        "Marcus saw no lights in the manor as he drove away"),
                 };
                 break;
 
             // ── TAPE 6: Charles Webb Interview ──────────────────────────────
             case TAPE_CHARLES_INTERVIEW:
-                actBreakAfterFork = 1;
-                actTitle          = "ACT II \u2014 WHAT CHARLES SAW";
-                actNarration      = "The documents were ready. The solicitor was due at nine.\nOne night stood between James and losing everything.";
                 forks = new Fork[]{
                     new Fork(true,
                         "Charles was preparing documents to disinherit James entirely",
-                        "Charles was doing routine filing for the estate"),
+                        "Charles was preparing documents to reduce James's share of the estate"),
                     new Fork(true,
-                        "Everyone in the house heard James and Harold shouting",
-                        "Charles heard nothing unusual from his room"),
+                        "Charles heard James and Harold shouting from his room",
+                        "Charles heard raised voices but thought nothing of it"),
                     new Fork(true,
-                        "At 10:45 James walked toward the study \u2014 grim, determined",
-                        "Charles assumed James was going to apologise"),
+                        "Charles saw James walk toward the study at 10:45 \u2014 grim, determined",
+                        "Charles saw James walk toward the study at 10:45 \u2014 hesitant, uncertain"),
                     new Fork(true,
-                        "Charles never saw James return from the study",
-                        "James was probably just restless after the argument"),
+                        "Charles never saw James return from the direction of the study",
+                        "Charles saw James return from the direction of the study an hour later"),
                     new Fork(true,
-                        "Daniel is unhealthily loyal to James. He would do anything.",
-                        "Daniel just did his job. Nothing suspicious."),
+                        "Charles said Daniel would do anything James asked of him",
+                        "Charles said Daniel was loyal to Harold above all others"),
                 };
                 break;
 
             // ── Default (fallback) ───────────────────────────────────────────
             default:
-                actBreakAfterFork = 1;
-                actTitle          = "ACT II \u2014 THE TRUTH";
-                actNarration      = "The record does not lie. Only the narrator does.";
                 forks = new Fork[]{
                     new Fork(true,  "TRUTH", "DISTORTION"),
                     new Fork(false, "DISTORTION", "TRUTH"),
@@ -399,125 +457,6 @@ public class MazeMinigame implements Screen {
         }
     }
 
-    private void setupNarratorTexts() {
-        switch (tape) {
-            case TAPE_JAMES_INTERVIEW:
-                winText  = "He asked for his solicitor the moment finances came up.\nNot when accused of murder. Finances.";
-                loseText = "A grieving son. Naturally defensive.\nThat is all I choose to see.";
-                break;
-            case TAPE_DANIEL_INTERVIEW:
-                winText  = "'I was helping move\u2014'\nHe stopped. But he had already said it.";
-                loseText = "A forgetful man. Groundskeepers have many tasks.\nThe missing log entry means nothing.";
-                break;
-            case TAPE_MARGARET_INTERVIEW:
-                winText  = "The dragging stopped at the cellar door.\nIt always stops at the cellar door.";
-                loseText = "Margaret was frightened. Old houses make sounds.\nThat is all it was.";
-                break;
-            case TAPE_MARCUS_INTERVIEW:
-                winText  = "Marcus left at eleven. The manor was quiet after that.\nThat's when it starts paying attention.";
-                loseText = "He had an alibi. Move on.";
-                break;
-            case TAPE_CHARLES_INTERVIEW:
-                winText  = "Nobody walks toward that study and comes back the same.";
-                loseText = "Charles assumed the best. People do.";
-                break;
-            default:
-                winText  = "The truth surfaces.";
-                loseText = "The distortion holds.";
-        }
-    }
-
-    private void setupInstructions() {
-        switch (tape) {
-            case TAPE_JAMES_INTERVIEW:
-                instructionHook      = "James Vance spoke carefully. Navigate his testimony to find what he was hiding.";
-                instructionObjective = new String[]{
-                    "Navigate the maze with  WASD  or  Arrow Keys",
-                    "At each fork, choose the TRUE statement",
-                    "The correct path continues downward to the exit",
-                    "Cleared truths appear in your timeline at the top left"
-                };
-                instructionAvoid = new String[]{
-                    "Wrong paths have monsters waiting at the dead end",
-                    "Monsters chase you through walls once they spot you",
-                    "You have 3 lives \u2014 each catch raises awareness",
-                    "The shadow follows from behind and never stops"
-                };
-                break;
-            case TAPE_DANIEL_INTERVIEW:
-                instructionHook      = "Daniel almost said it once. Navigate fifteen years of carefully constructed lies.";
-                instructionObjective = new String[]{
-                    "Navigate with  WASD  or  Arrow Keys",
-                    "Two acts, six forks \u2014 choose the TRUE statement each time",
-                    "The correct arm reconnects to the centre path",
-                    "Reach the exit at the bottom to surface the truth"
-                };
-                instructionAvoid = new String[]{
-                    "Monsters guard every wrong arm \u2014 they will give chase",
-                    "3 lives across the full maze",
-                    "The shadow pursues you from above \u2014 it never stops",
-                    "Too many catches and the distortion wins"
-                };
-                break;
-            case TAPE_MARGARET_INTERVIEW:
-                instructionHook      = "Margaret Vance testified under questioning. Fear distorted some of what she said.";
-                instructionObjective = new String[]{
-                    "Navigate with  WASD  or  Arrow Keys",
-                    "At each fork, choose the TRUE statement",
-                    "Two acts \u2014 the evening, then the night",
-                    "Cleared truths build a sorted timeline at the top"
-                };
-                instructionAvoid = new String[]{
-                    "Wrong paths trigger monsters that chase through walls",
-                    "You have 3 lives shared across the whole maze",
-                    "The shadow follows from behind \u2014 keep moving",
-                    "Walking into a wrong path shows you its lie in red"
-                };
-                break;
-            case TAPE_MARCUS_INTERVIEW:
-                instructionHook      = "Marcus Blackwood came voluntarily. His alibi is almost too clean.";
-                instructionObjective = new String[]{
-                    "Navigate with  WASD  or  Arrow Keys",
-                    "Choose the TRUE statement at each fork to progress",
-                    "Two acts \u2014 the negotiation, then what Marcus saw",
-                    "Exit at the bottom to complete the tape"
-                };
-                instructionAvoid = new String[]{
-                    "Wrong arms have monsters waiting in the dark",
-                    "3 lives across the maze \u2014 each catch raises awareness",
-                    "The shadow approaches from behind constantly",
-                    "Wrong paths flash their lie in red before the chase starts"
-                };
-                break;
-            case TAPE_CHARLES_INTERVIEW:
-                instructionHook      = "Charles Webb was Harold's most trusted assistant. He saw everything that night.";
-                instructionObjective = new String[]{
-                    "Navigate with  WASD  or  Arrow Keys",
-                    "At each fork choose the TRUE statement",
-                    "Two acts \u2014 the will, then what Charles witnessed",
-                    "Reach the exit to reconstruct the full timeline"
-                };
-                instructionAvoid = new String[]{
-                    "False paths have monsters at every dead end",
-                    "3 lives total \u2014 each monster catch costs awareness",
-                    "The shadow cannot be escaped, only outpaced",
-                    "Entering a wrong arm shows you the lie it guards"
-                };
-                break;
-            default:
-                instructionHook      = "Navigate the truth. Avoid the distortion.";
-                instructionObjective = new String[]{
-                    "Navigate the maze with  WASD  or  Arrow Keys",
-                    "At each fork, choose the TRUE statement",
-                    "Reach the exit at the bottom to win"
-                };
-                instructionAvoid = new String[]{
-                    "Wrong paths have monsters that chase you",
-                    "You have 3 lives \u2014 each catch raises awareness",
-                    "The shadow follows from behind at all times"
-                };
-        }
-    }
 
     // ── Screen lifecycle ──────────────────────────────────────────────────────
 
@@ -531,6 +470,7 @@ public class MazeMinigame implements Screen {
         smallFont= new BitmapFont();
         font.getData().setScale(1.6f);
         smallFont.getData().setScale(0.88f);
+        smallFont.getData().markupEnabled = true;
         layout   = new GlyphLayout();
 
         for (int d = 0; d < DIR_COUNT; d++)
@@ -552,11 +492,49 @@ public class MazeMinigame implements Screen {
             exitTex  = new Texture(Gdx.files.internal("minigames/exitvisual.png"));
         if (Gdx.files.internal("minigames/deadend.jpg").exists())
             deadEndTex = new Texture(Gdx.files.internal("minigames/deadend.jpg"));
+        if (Gdx.files.internal("parchment.png").exists())
+            parchmentTex = new Texture(Gdx.files.internal("parchment.png"));
+        loadMazeAndVictoryMusic();
+
+        if (game.bgMusic != null && game.bgMusic.isPlaying()) {
+            game.bgMusic.pause();
+            pausedMainBgm = true;
+        }
 
         playerX = worldX(CENTER_COL);
         playerY = worldY(0);
         shadowX = worldX(CENTER_COL);
         shadowY = worldY(rows - 2);
+
+        if (!introShown) phase = Phase.NARRATOR_INTRO;
+    }
+
+    /**
+     * Maze BGM: same as Testing 5 — {@code maze_music.mp3} at assets root (dedicated track with seamless-style loop).
+     * Optional alternates only if root is missing; then manor / inventory ambience (simple loop, not ideal for maze).
+     */
+    private void loadMazeAndVictoryMusic() {
+        String[] mazeCandidates = {
+            "maze_music.mp3",
+            "music/maze_music.mp3",
+            "sfx/maze_music.mp3"
+        };
+        for (String p : mazeCandidates) {
+            if (Gdx.files.internal(p).exists()) {
+                mazeMusic = Gdx.audio.newMusic(Gdx.files.internal(p));
+                mazeMusicSeamlessLoop = true;
+                break;
+            }
+        }
+        if (mazeMusic == null) {
+            mazeMusicSeamlessLoop = false;
+            if (Gdx.files.internal("music/manor_ambience.mp3").exists())
+                mazeMusic = Gdx.audio.newMusic(Gdx.files.internal("music/manor_ambience.mp3"));
+            else if (Gdx.files.internal("sfx/inventory/inventory_music.mp3").exists())
+                mazeMusic = Gdx.audio.newMusic(Gdx.files.internal("sfx/inventory/inventory_music.mp3"));
+        }
+        if (Gdx.files.internal("victory.mp3").exists())
+            victoryMusic = Gdx.audio.newMusic(Gdx.files.internal("victory.mp3"));
     }
 
     // ── Coordinate helpers ────────────────────────────────────────────────────
@@ -586,33 +564,32 @@ public class MazeMinigame implements Screen {
         viewport.apply();
 
         switch (phase) {
-            case INSTRUCTIONS:
-                pulseTimer += delta;
-                if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)
-                 || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-                    phase = Phase.PLAYING;
+            case NARRATOR_INTRO:
+                if (Gdx.input.justTouched() || Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY)) {
+                    introShown = true;
+                    phase      = Phase.PLAYING;
                 }
-                snapCamera();
-                drawInstructions();
-                return;
+                break;
             case PLAYING:
                 update(delta);
                 break;
-            case ACT_BREAK:
-                actBreakTimer += delta;
-                if (actBreakTimer >= ACT_BREAK_DUR) phase = Phase.PLAYING;
-                break;
-            case WIN:
             case LOSE:
                 endTimer += delta;
-                float dur = (phase == Phase.WIN) ? WIN_DISPLAY_DUR : END_DISPLAY_DUR;
-                if (endTimer >= dur) {
+                if (endTimer >= LOSE_RESTART_DELAY) {
+                    restartMazeAfterLoss();
+                    return;
+                }
+                break;
+            case WIN:
+                endTimer += delta;
+                if (endTimer >= WIN_DISPLAY_DUR) {
                     onComplete.run();
                     return;
                 }
                 break;
         }
 
+        lastDelta = delta;
         snapCamera();
         draw();
     }
@@ -630,6 +607,33 @@ public class MazeMinigame implements Screen {
     // ── Update ────────────────────────────────────────────────────────────────
 
     private void update(float delta) {
+        if (!musicStarted) {
+            musicTimer += delta;
+            if (musicTimer >= 3f && mazeMusic != null) {
+                if (mazeMusicSeamlessLoop) {
+                    mazeMusic.setLooping(false);
+                    mazeMusic.setOnCompletionListener(m -> {
+                        if (musicDuration < 0f) musicDuration = musicElapsed;
+                        musicElapsed = 0f;
+                        musicLoopTriggered = false;
+                        m.play();
+                    });
+                } else {
+                    mazeMusic.setLooping(true);
+                    mazeMusic.setVolume(0.45f);
+                }
+                mazeMusic.play();
+                musicStarted = true;
+            }
+        } else if (mazeMusic != null && mazeMusicSeamlessLoop) {
+            musicElapsed += delta;
+            if (musicDuration > 0f && !musicLoopTriggered
+                    && musicElapsed >= musicDuration - 5f) {
+                musicLoopTriggered = true;
+                musicElapsed = 0f;
+                mazeMusic.setPosition(0f);
+            }
+        }
         if (shadowCatchCooldown > 0f) shadowCatchCooldown -= delta;
         if (shadowFlashTimer    > 0f) shadowFlashTimer    -= delta;
         if (deadEndLieTimer     > 0f) deadEndLieTimer     -= delta;
@@ -691,6 +695,7 @@ public class MazeMinigame implements Screen {
     }
 
     private boolean tileOpen(float wx, float wy) {
+        if (rows - 1 - (int)(wy / TILE) < 0) return false; // above top row = wall
         int c = toCol(wx), r = toRow(wy);
         return maze[r][c] != 0;
     }
@@ -758,9 +763,46 @@ public class MazeMinigame implements Screen {
     private void finalizeScore() {
         if (monsterCatches == 0) score += SCORE_NO_WRONG_BONUS;
         gameState.setLastMinigameScore(score);
-        String tier = gameState.getMinigameScoreTier();
-        if (tier.equals("DISTORTED")) gameState.addAwareness(1);
-        if (tier.equals("CORRUPTED")) gameState.addAwareness(2);
+    }
+
+    /** Reset maze state and resume PLAYING after the loss overlay (awareness +2 already applied). */
+    private void restartMazeAfterLoss() {
+        phase = Phase.PLAYING;
+        endTimer = 0f;
+        monsterCatches = 0;
+        forksCleared = 0;
+        score = 0;
+        timelineSize = 0;
+        for (Fork f : forks) {
+            f.cleared = false;
+            f.wrongVisited = false;
+        }
+        if (armMonsters != null) {
+            for (int i = 0; i < armMonsters.length; i++) {
+                Fork f = forks[i];
+                int wrongCol = f.trueIsLeft ? RIGHT_ARM : LEFT_ARM;
+                ArmMonster m = armMonsters[i];
+                m.x = worldX(wrongCol);
+                m.y = worldY(f.deadEndRow);
+                m.active = false;
+                m.tagged = false;
+                m.frame = 0;
+                m.frameTimer = 0f;
+            }
+        }
+        playerX = worldX(CENTER_COL);
+        playerY = worldY(0);
+        shadowX = worldX(CENTER_COL);
+        shadowY = worldY(rows - 2);
+        lastActiveFork = null;
+        parchAlpha = 0f;
+        parchFadingIn = false;
+        deadEndLieText = "";
+        deadEndLieTimer = 0f;
+        shadowCatchCooldown = 0f;
+        shadowFlashTimer = 0f;
+        dirFrameIdx = 0;
+        dirFrameTimer = 0f;
     }
 
     private void checkFork() {
@@ -775,12 +817,7 @@ public class MazeMinigame implements Screen {
                 forksCleared++;
                 score += SCORE_FORK_CLEAR;
                 addToTimeline(f, i);
-                // Trigger act break if this is the designated break fork
-                if (i == actBreakAfterFork && !actBreakUsed) {
-                    actBreakUsed  = true;
-                    actBreakTimer = 0f;
-                    phase         = Phase.ACT_BREAK;
-                }
+
             }
 
             // Wrong arm entered: flash the lie statement
@@ -837,8 +874,9 @@ public class MazeMinigame implements Screen {
                 m.active = false;
                 m.tagged = true;
                 if (monsterCatches >= MAX_MONSTER_CATCHES) {
-                    finalizeScore();
+                    gameState.addAwareness(2);
                     phase = Phase.LOSE;
+                    endTimer = 0f;
                 }
             }
         }
@@ -847,6 +885,8 @@ public class MazeMinigame implements Screen {
     private void checkExit() {
         if (toCol(pcx()) == CENTER_COL && toRow(pcy()) >= rows - 1) {
             finalizeScore();
+            if (mazeMusic != null) { mazeMusic.stop(); }
+            if (victoryMusic != null) victoryMusic.play();
             phase = Phase.WIN;
         }
     }
@@ -894,9 +934,9 @@ public class MazeMinigame implements Screen {
         drawForkLabels();
         batch.end();
 
-        // Phase 4 — act break overlay
-        if (phase == Phase.ACT_BREAK) {
-            drawActBreak();
+        // Phase 4 — narrator intro overlay
+        if (phase == Phase.NARRATOR_INTRO) {
+            drawNarratorIntro();
         }
 
         // Phase 5 — end screen
@@ -947,41 +987,64 @@ public class MazeMinigame implements Screen {
                 activeFork  = f;
             }
         }
-        if (activeFork == null) return;
 
-        float panelW      = 360f;
-        float panelH      = 80f;
-        float panelY      = camBot() + 12f;
+        // Detect fork change — trigger fade-out then fade-in on new fork
+        if (activeFork != lastActiveFork) {
+            if (activeFork == null) {
+                // Walked away: fade out
+                parchFadingIn = false;
+            } else if (lastActiveFork == null) {
+                // Approaching fresh: fade in
+                parchAlpha    = 0f;
+                parchFadingIn = true;
+            } else {
+                // Switched fork: restart fade-in
+                parchAlpha    = 0f;
+                parchFadingIn = true;
+            }
+            lastActiveFork = activeFork;
+        }
+
+        // Advance alpha
+        float step = lastDelta / PARCH_FADE_DUR;
+        if (parchFadingIn) {
+            parchAlpha = Math.min(1f, parchAlpha + step);
+        } else {
+            parchAlpha = Math.max(0f, parchAlpha - step);
+        }
+
+        if (parchAlpha <= 0f) return;
+
+        // Use lastActiveFork so we keep drawing during fade-out
+        Fork drawFork = lastActiveFork;
+        if (drawFork == null) return;
+
+        float panelY      = camBot() + PARCH_PANEL_YOFF;
         float leftPanelX  = camLeft() + 20f;
-        float rightPanelX = camLeft() + VW - panelW - 20f;
+        float rightPanelX = camLeft() + VW - PARCH_PANEL_W - 20f;
 
-        batch.end();
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        shape.begin(ShapeRenderer.ShapeType.Filled);
-        shape.setColor(0f, 0f, 0f, 0.78f);
-        shape.rect(leftPanelX, panelY, panelW, panelH);
-        shape.setColor(0.55f, 0.45f, 0.25f, 1f);
-        shape.rect(leftPanelX, panelY + panelH - 2f, panelW, 2f);
-        shape.setColor(0f, 0f, 0f, 0.78f);
-        shape.rect(rightPanelX, panelY, panelW, panelH);
-        shape.setColor(0.55f, 0.45f, 0.25f, 1f);
-        shape.rect(rightPanelX, panelY + panelH - 2f, panelW, 2f);
-        shape.end();
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-        batch.begin();
+        // Draw parchment backgrounds with fade alpha
+        if (parchmentTex != null) {
+            batch.setColor(1f, 1f, 1f, parchAlpha);
+            batch.draw(parchmentTex, leftPanelX  + PARCH_IMG_OFF_X, panelY + PARCH_IMG_OFF_Y, PARCH_IMG_W, PARCH_IMG_H);
+            batch.draw(parchmentTex, rightPanelX + PARCH_IMG_OFF_X, panelY + PARCH_IMG_OFF_Y, PARCH_IMG_W, PARCH_IMG_H);
+            batch.setColor(Color.WHITE);
+        }
 
-        smallFont.setColor(new Color(0.65f, 0.55f, 0.3f, 1f));
-        smallFont.draw(batch, "\u2190 LEFT", leftPanelX + 6f, panelY + panelH - 4f);
-        smallFont.setColor(new Color(0.95f, 0.9f, 0.8f, 1f));
-        smallFont.draw(batch, activeFork.leftStatement,
-                leftPanelX + 6f, panelY + panelH - 22f, panelW - 12f, -1, true);
+        Color textColor = new Color(0.22f, 0.10f, 0.02f, parchAlpha);
+        smallFont.setColor(textColor);
 
-        smallFont.setColor(new Color(0.65f, 0.55f, 0.3f, 1f));
-        smallFont.draw(batch, "RIGHT \u2192", rightPanelX + panelW - 70f, panelY + panelH - 4f);
-        smallFont.setColor(new Color(0.95f, 0.9f, 0.8f, 1f));
-        smallFont.draw(batch, activeFork.rightStatement,
-                rightPanelX + 6f, panelY + panelH - 22f, panelW - 12f, -1, true);
+        // Left text area — centre-centre
+        layout.setText(smallFont, drawFork.leftMarked, textColor, TXT_L_W, 1, true);
+        float lx = camLeft() + TXT_L_X;
+        float ly = camBot()  + TXT_L_Y + (TXT_L_H + layout.height) / 2f;
+        smallFont.draw(batch, layout, lx, ly);
+
+        // Right text area — centre-centre
+        layout.setText(smallFont, drawFork.rightMarked, textColor, TXT_R_W, 1, true);
+        float rx = camLeft() + TXT_R_X;
+        float ry = camBot()  + TXT_R_Y + (TXT_R_H + layout.height) / 2f;
+        smallFont.draw(batch, layout, rx, ry);
     }
 
     private void drawShadow() {
@@ -1069,93 +1132,97 @@ public class MazeMinigame implements Screen {
         smallFont.setColor(Color.WHITE);
     }
 
-    /** Full-screen act break overlay — freezes gameplay, shows act title + narration. */
-    private void drawActBreak() {
+    private void drawNarratorIntro() {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shape.begin(ShapeRenderer.ShapeType.Filled);
-        shape.setColor(0f, 0f, 0f, 0.93f);
+        shape.setColor(0f, 0f, 0f, 0.94f);
         shape.rect(camLeft(), camBot(), VW, VH);
         shape.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
 
         batch.begin();
 
-        font.setColor(new Color(0.75f, 0.6f, 0.3f, 1f));
-        layout.setText(font, actTitle);
-        font.draw(batch, actTitle,
+        float bodyX = camLeft() + 300f;
+        float bodyW = VW - 600f;
+        Color dim   = new Color(0.42f, 0.40f, 0.35f, 1f);
+        Color warm  = new Color(0.90f, 0.86f, 0.76f, 1f);
+
+        // Opening stage direction
+        smallFont.setColor(dim);
+        smallFont.draw(batch,
+            "[A voice settles into the silence. Not from any direction. From somewhere behind your thoughts.]",
+            bodyX, camBot() + VH / 2f + 188f, bodyW, 1, true);
+
+        // Narrator lines
+        smallFont.setColor(warm);
+        smallFont.draw(batch,
+            "First tape. Good.",
+            bodyX, camBot() + VH / 2f + 150f, bodyW, 1, true);
+
+        smallFont.draw(batch,
+            "You move with the arrow keys \u2014 WASD if you prefer. Walk toward the exit at the bottom of the corridor.",
+            bodyX, camBot() + VH / 2f + 120f, bodyW, 1, true);
+
+        smallFont.draw(batch,
+            "At certain junctions the path splits. Two accounts of the same moment, one on each side. One is exactly what was said. The other has been changed \u2014 deliberately or otherwise, I can never quite tell. Walk toward the truth.",
+            bodyX, camBot() + VH / 2f + 68f, bodyW, 1, true);
+
+        smallFont.draw(batch,
+            "If you go the wrong way, something in the dark will find you. Three times, and the memory collapses entirely \u2014 and your awareness rises. So. Try not to go the wrong way.",
+            bodyX, camBot() + VH / 2f - 14f, bodyW, 1, true);
+
+        smallFont.draw(batch,
+            "There is also something behind you. It follows. It has always followed. Keep moving.",
+            bodyX, camBot() + VH / 2f - 72f, bodyW, 1, true);
+
+        smallFont.draw(batch,
+            "You do not get to walk away from this. Not until you reach the other end. One way or another, you see it through.",
+            bodyX, camBot() + VH / 2f - 104f, bodyW, 1, true);
+
+        // Closing stage direction
+        smallFont.setColor(dim);
+        smallFont.draw(batch,
+            "[A pause. The quality of the silence changes slightly.]",
+            bodyX, camBot() + VH / 2f - 148f, bodyW, 1, true);
+
+        // Closing line
+        smallFont.setColor(warm);
+        smallFont.draw(batch,
+            "Trust what you read.",
+            bodyX, camBot() + VH / 2f - 166f, bodyW, 1, true);
+
+        // Prompt
+        smallFont.setColor(new Color(0.36f, 0.36f, 0.36f, 1f));
+        String prompt = "[ Press any key ]";
+        layout.setText(smallFont, prompt);
+        smallFont.draw(batch, prompt,
             camLeft() + (VW - layout.width) / 2f,
-            camBot() + VH / 2f + 90f);
-
-        // Decorative separator
-        smallFont.setColor(new Color(0.5f, 0.42f, 0.22f, 1f));
-        String sep = "\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014";
-        layout.setText(smallFont, sep);
-        smallFont.draw(batch, sep, camLeft() + (VW - layout.width) / 2f, camBot() + VH / 2f + 46f);
-
-        smallFont.setColor(new Color(0.9f, 0.86f, 0.76f, 1f));
-        smallFont.draw(batch, actNarration,
-            camLeft() + 240f,
-            camBot() + VH / 2f + 26f,
-            VW - 480f, 1, true);
-
-        // Fade-in "continuing..." hint at end of break
-        float progress = actBreakTimer / ACT_BREAK_DUR;
-        if (progress > 0.7f) {
-            float alpha = (progress - 0.7f) / 0.3f;
-            smallFont.setColor(new Color(0.5f, 0.5f, 0.5f, alpha));
-            String cont = "[ CONTINUING\u2026 ]";
-            layout.setText(smallFont, cont);
-            smallFont.draw(batch, cont,
-                camLeft() + (VW - layout.width) / 2f,
-                camBot() + VH / 2f - 60f);
-        }
+            camBot() + VH / 2f - 196f);
 
         batch.end();
     }
 
     private void drawEndText() {
-        boolean won    = (phase == Phase.WIN);
-        String  header = won ? "THE NARRATOR CRACKS" : "THE DISTORTION HOLDS";
-        String  body   = won ? winText : loseText;
-        String  tier   = gameState.getMinigameScoreTier();
-        String  scoreLine = "Score: " + score + " / 200   \u2014   " + tier;
+        boolean won = (phase == Phase.WIN);
 
         font.setColor(won ? new Color(0.2f, 0.9f, 1f, 1f) : Color.RED);
+        String header = won ? "MAZE COMPLETE" : "AWARENESS +2";
         layout.setText(font, header);
         font.draw(batch, header,
             camLeft() + (VW - layout.width) / 2f,
             camBot() + VH / 2f + 110f);
 
-        smallFont.setColor(Color.WHITE);
-        smallFont.draw(batch, body,
-            camLeft() + 240f,
-            camBot() + VH / 2f + 55f,
-            VW - 480f, 1, true);
-
-        // Score tier line
-        Color tierColor;
-        if      (tier.equals("TRUTH SURFACED")) tierColor = new Color(0.2f, 0.95f, 0.6f, 1f);
-        else if (tier.equals("MOSTLY CLEAR"))   tierColor = new Color(0.9f, 0.9f, 0.5f, 1f);
-        else if (tier.equals("DISTORTED"))      tierColor = new Color(1f, 0.55f, 0.15f, 1f);
-        else                                    tierColor = new Color(1f, 0.2f, 0.2f, 1f);
-
-        smallFont.setColor(tierColor);
-        layout.setText(smallFont, scoreLine);
-        smallFont.draw(batch, scoreLine,
-            camLeft() + (VW - layout.width) / 2f,
-            camBot() + VH / 2f + 10f);
-
-        // WIN: show sorted truth timeline as revelation
+        // WIN: show sorted truth timeline
         if (won && timelineSize > 0) {
             smallFont.setColor(new Color(0.45f, 0.85f, 0.7f, 1f));
             smallFont.draw(batch, "WHAT THE TAPE REVEALS:",
-                camLeft() + 240f, camBot() + VH / 2f - 20f);
+                camLeft() + 240f, camBot() + VH / 2f + 60f);
             for (int i = 0; i < timelineSize; i++) {
                 smallFont.setColor(new Color(0.78f, 0.96f, 0.86f, 1f));
                 smallFont.draw(batch, (i + 1) + ". " + timeline[i],
                     camLeft() + 260f,
-                    camBot() + VH / 2f - 40f - i * 22f,
+                    camBot() + VH / 2f + 38f - i * 22f,
                     VW - 520f, -1, true);
             }
         }
@@ -1168,124 +1235,6 @@ public class MazeMinigame implements Screen {
      * All positions use camLeft() + x and camBot() + y offsets so the overlay is
      * always screen-aligned regardless of the camera's world position.
      */
-    private void drawInstructions() {
-        float cx = camLeft(); // always 0 (camera x = VW/2)
-        float cy = camBot();  // world-Y of screen bottom
-
-        // ── ShapeRenderer pass ──────────────────────────────────────────────
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        shape.begin(ShapeRenderer.ShapeType.Filled);
-
-        // Full dark background
-        shape.setColor(0f, 0f, 0f, 0.97f);
-        shape.rect(cx, cy, VW, VH);
-
-        // Left panel (OBJECTIVE)
-        shape.setColor(0.05f, 0.05f, 0.09f, 0.96f);
-        shape.rect(cx + 50f,   cy + 175f, 555f, 380f);
-        // Right panel (AVOID)
-        shape.rect(cx + 675f,  cy + 175f, 555f, 380f);
-
-        // Panel top-border accents
-        shape.setColor(0.55f, 0.45f, 0.22f, 1f);
-        shape.rect(cx + 50f,  cy + 553f, 555f, 3f);
-        shape.rect(cx + 675f, cy + 553f, 555f, 3f);
-
-        // Separator under hook
-        shape.setColor(0.3f, 0.25f, 0.12f, 1f);
-        shape.rect(cx + 50f, cy + 610f, 1180f, 1f);
-
-        // Control key icon backgrounds  (WASD cluster + Arrow label)
-        float ky = cy + 148f;
-        float ksize = 30f;
-        // W A S D keys
-        float[][] wasd = { {cx+478f, ky+34f}, {cx+446f, ky}, {cx+478f, ky}, {cx+510f, ky} };
-        shape.setColor(0.18f, 0.18f, 0.25f, 1f);
-        for (float[] k : wasd) shape.rect(k[0], k[1], ksize, ksize);
-
-        shape.end();
-
-        // Panel outlines
-        shape.begin(ShapeRenderer.ShapeType.Line);
-        shape.setColor(0.35f, 0.28f, 0.14f, 1f);
-        shape.rect(cx + 50f,  cy + 175f, 555f, 380f);
-        shape.rect(cx + 675f, cy + 175f, 555f, 380f);
-        shape.setColor(0.5f, 0.5f, 0.6f, 1f);
-        for (float[] k : wasd) shape.rect(k[0], k[1], ksize, ksize);
-        shape.end();
-
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-
-        // ── Batch pass (text) ───────────────────────────────────────────────
-        batch.begin();
-
-        // Tape title
-        font.setColor(new Color(0.88f, 0.74f, 0.36f, 1f));
-        String title = tape.getTitle().toUpperCase();
-        layout.setText(font, title);
-        font.draw(batch, title, cx + (VW - layout.width) / 2f, cy + 692f);
-
-        // Hook
-        smallFont.setColor(new Color(0.80f, 0.76f, 0.66f, 1f));
-        layout.setText(smallFont, instructionHook);
-        smallFont.draw(batch, instructionHook, cx + (VW - layout.width) / 2f, cy + 645f);
-
-        // Left panel header
-        smallFont.setColor(new Color(0.4f, 0.85f, 0.55f, 1f));
-        smallFont.draw(batch, "OBJECTIVE", cx + 66f, cy + 543f);
-
-        // Left bullets
-        smallFont.setColor(new Color(0.92f, 0.89f, 0.80f, 1f));
-        for (int i = 0; i < instructionObjective.length; i++) {
-            smallFont.draw(batch, "\u2022  " + instructionObjective[i],
-                cx + 66f, cy + 510f - i * 34f, 525f, -1, true);
-        }
-
-        // Right panel header
-        smallFont.setColor(new Color(0.9f, 0.35f, 0.35f, 1f));
-        smallFont.draw(batch, "AVOID", cx + 691f, cy + 543f);
-
-        // Right bullets
-        smallFont.setColor(new Color(0.92f, 0.89f, 0.80f, 1f));
-        for (int i = 0; i < instructionAvoid.length; i++) {
-            smallFont.draw(batch, "\u2022  " + instructionAvoid[i],
-                cx + 691f, cy + 510f - i * 34f, 525f, -1, true);
-        }
-
-        // Controls label
-        smallFont.setColor(new Color(0.55f, 0.55f, 0.65f, 1f));
-        smallFont.draw(batch, "CONTROLS:", cx + 370f, cy + 170f);
-
-        // WASD key labels
-        smallFont.setColor(Color.WHITE);
-        String[] wLabels = { "W", "A", "S", "D" };
-        for (int i = 0; i < wLabels.length; i++) {
-            layout.setText(smallFont, wLabels[i]);
-            smallFont.draw(batch, wLabels[i],
-                wasd[i][0] + (ksize - layout.width) / 2f,
-                wasd[i][1] + (ksize + layout.height) / 2f);
-        }
-        smallFont.setColor(new Color(0.55f, 0.55f, 0.65f, 1f));
-        smallFont.draw(batch, "/ Arrow Keys  to move", cx + 548f, cy + 163f);
-
-        // Forks reminder
-        int forkCount = forks.length;
-        int actCount  = (actBreakAfterFork >= 0) ? 2 : 1;
-        smallFont.setColor(new Color(0.65f, 0.55f, 0.3f, 1f));
-        String mapInfo = forkCount + " forks across " + actCount + " acts  \u2014  3 lives total";
-        layout.setText(smallFont, mapInfo);
-        smallFont.draw(batch, mapInfo, cx + (VW - layout.width) / 2f, cy + 122f);
-
-        // Pulsing PRESS ENTER prompt
-        float alpha = 0.45f + 0.55f * MathUtils.sin(pulseTimer * 2.8f);
-        smallFont.setColor(new Color(0.65f, 0.80f, 1f, alpha));
-        String prompt = "PRESS  ENTER  OR  SPACE  TO  BEGIN";
-        layout.setText(smallFont, prompt);
-        smallFont.draw(batch, prompt, cx + (VW - layout.width) / 2f, cy + 68f);
-
-        batch.end();
-    }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -1307,10 +1256,25 @@ public class MazeMinigame implements Screen {
         }
         if (floorTex   != null) floorTex.dispose();
         if (exitTex    != null) exitTex.dispose();
-        if (deadEndTex != null) deadEndTex.dispose();
+        if (deadEndTex   != null) deadEndTex.dispose();
+        if (parchmentTex != null) parchmentTex.dispose();
+        if (mazeMusic    != null) { mazeMusic.stop();   mazeMusic.dispose(); }
+        if (victoryMusic != null) { victoryMusic.stop(); victoryMusic.dispose(); }
+        resumeMainBgmIfNeeded();
+    }
+
+    private void resumeMainBgmIfNeeded() {
+        if (pausedMainBgm && game.bgMusic != null) {
+            game.bgMusic.play();
+            pausedMainBgm = false;
+        }
     }
 
     @Override public void pause()  {}
     @Override public void resume() {}
-    @Override public void hide()   {}
+    @Override public void hide() {
+        if (mazeMusic != null) mazeMusic.stop();
+        if (victoryMusic != null) victoryMusic.stop();
+        resumeMainBgmIfNeeded();
+    }
 }

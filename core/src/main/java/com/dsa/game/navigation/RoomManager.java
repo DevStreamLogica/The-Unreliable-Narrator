@@ -190,7 +190,6 @@ public class RoomManager {
         private void setupExamineHotspots() {
                 Room study = rooms.get(Room.RoomID.STUDY);
                 study.addHotspot(new Hotspot("ashes", "Examine: Fireplace Ashes", 265, 156, 60, 40));
-                study.addHotspot(new Hotspot("poker", "Examine: Fireplace Poker", 583, 272, 60, 20));
                 study.addHotspot(new Hotspot("papers", "Examine: Papers", 653, 270, 30, 20));
                 study.addHotspot(new Hotspot("drawers", "Examine: Desk Drawers", 473, 167, 65, 70));
                 study.addHotspot(new Hotspot("drawers", "Examine: Desk Drawers", 700, 161, 80, 70));

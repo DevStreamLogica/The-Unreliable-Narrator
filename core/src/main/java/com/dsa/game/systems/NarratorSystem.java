@@ -168,7 +168,8 @@ public class NarratorSystem {
                 boolean hasContradictingEvidence = false;
                 switch (c) {
                     case NARRATOR_WEAPON:
-                        hasContradictingEvidence = state.hasEvidence(Evidence.FIREPLACE_POKER);
+                        // Letter opener evidence documents it doesn't match the wound (planted weapon).
+                        hasContradictingEvidence = state.hasEvidence(Evidence.LETTER_OPENER);
                         break;
                     case NARRATOR_BOOTS:
                         hasContradictingEvidence = state.hasEvidence(Evidence.MUDDY_BOOTS);

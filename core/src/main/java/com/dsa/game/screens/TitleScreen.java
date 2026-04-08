@@ -301,7 +301,7 @@ public class TitleScreen implements Screen {
     }
 
     private void startNewGame() {
-        game.setScreen(new IntroScreen(game));
+        game.setScreen(new GameScreen(game));
     }
 
     private void showLoadPanel() {

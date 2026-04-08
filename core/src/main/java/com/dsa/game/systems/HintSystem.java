@@ -125,16 +125,15 @@ public class HintSystem {
             case 0:
                 return "You need more evidence. Keep examining objects and interviewing suspects.";
             case 1:
-                return "Evidence against James: " + jCount + "/7 found (need 3 to accuse). Evidence against Daniel: " + dCount + "/4 found (need 2 to accuse). " +
+                return "Evidence against James: " + jCount + "/6 found (need 3 to accuse). Evidence against Daniel: " + dCount + "/4 found (need 2 to accuse). " +
                        "Try rooms you haven't fully explored.";
             default:
                 StringBuilder sb = new StringBuilder();
                 sb.append("Evidence needed:\n");
-                sb.append("Against James (have ").append(jCount).append("/7): ");
+                sb.append("Against James (have ").append(jCount).append("/6): ");
                 if (!state.hasEvidence(Evidence.FINANCIAL_RECORDS)) sb.append("Financial Records (Study drawers), ");
                 if (!state.hasEvidence(Evidence.WILL_COPY)) sb.append("Will Copy (Parlor briefcase), ");
                 if (!state.hasEvidence(Evidence.TORN_LETTER)) sb.append("Torn Letter (Study fireplace ashes), ");
-                if (!state.hasEvidence(Evidence.FIREPLACE_POKER)) sb.append("Fireplace Poker (Study poker, 2nd exam), ");
                 if (!state.hasTape(Tape.TAPE_ARGUMENT)) sb.append("Tape: Argument (Study under_desk), ");
                 if (!state.hasTape(Tape.TAPE_JAMES_INTERVIEW)) sb.append("Tape: James Interview (Study bookshelves), ");
                 if (!state.hasEvidence(Evidence.BLACKMAIL_NOTE)) sb.append("Blackmail Note (Margaret's Room letter), ");

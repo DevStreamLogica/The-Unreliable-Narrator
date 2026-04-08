@@ -75,13 +75,6 @@ public class ExaminationSystem {
                 }
                 return new ExamResult("The fireplace. The unusual ashes and the scratched name 'THOMAS' remain.");
 
-            case "poker":
-                if (count == 1) return new ExamResult("An iron poker rests beside the fireplace. Standard fireplace equipment. Wait -- there's a faint reddish-brown stain near the weighted end that doesn't match soot or rust.");
-                if (count == 2) return new ExamResult(
-                    "Looking more closely at the poker, you notice the handle has been recently wiped down -- aggressively. But the weighted end still shows traces of blood caught in the ornate metalwork. This is the murder weapon.",
-                    Evidence.FIREPLACE_POKER);
-                return new ExamResult("The fireplace poker. The real murder weapon.");
-
             case "ashes":
                 if (count == 1) return new ExamResult(
                     "Sifting through the ashes carefully, you find fragments of a burned letter. The pieces are scattered but might be reconstructed...",

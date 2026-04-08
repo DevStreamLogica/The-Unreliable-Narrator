@@ -190,27 +190,39 @@ public class NarratorText {
     private static final String[][] HOLD_RESISTANCE = {
         // HOPEFUL
         {
-            "\"I wouldn't bother with that. The answers are elsewhere.\"",
-            "\"There's nothing useful there -- trust me.\"",
-            "\"Perhaps try a different direction.\""
+            "\"Hm. That's... probably not important. Shall we move on?\"",
+            "\"I've looked at that already. Nothing worth your time.\"",
+            "\"You know, the study might be more productive. Just a thought.\"",
+            "\"I really don't think that's what we're looking for.\"",
+            "\"Honestly? I'd skip it. Call it instinct.\"",
+            "\"We could be looking at something much more interesting right now.\""
         },
         // CONFUSED
         {
-            "\"I... don't think you need to look there.\"",
-            "\"Why are you stopping? There's nothing there.\"",
-            "\"That spot feels wrong. Please, just move on.\""
+            "\"I -- wait, why are you looking at that?\"",
+            "\"Something about that makes me uneasy. Can we just... not?\"",
+            "\"I keep telling myself it's nothing. It's nothing. Keep moving.\"",
+            "\"My head is foggy enough without adding that to the pile.\"",
+            "\"I don't remember why, but I don't want you touching that.\"",
+            "\"There's a feeling I get near that. Like a word I can't quite remember.\""
         },
         // ANXIOUS
         {
-            "\"Don't. Please don't look there.\"",
-            "\"There is NOTHING there. Why won't you listen?\"",
-            "\"Move away. Right now. Please.\""
+            "\"Please don't. I mean it. There's nothing there.\"",
+            "\"I need you to step back from that. Right now.\"",
+            "\"Why do you keep -- just leave it alone. Please.\"",
+            "\"I don't want to see what's there. I don't want either of us to see it.\"",
+            "\"I am asking you, as sincerely as I can -- walk away.\"",
+            "\"Every time you look at that, something feels like it shifts in this house.\""
         },
         // FRANTIC
         {
-            "\"STOP LOOKING THERE.\"",
-            "\"YOU DON'T NEED TO SEE THAT. LEAVE IT ALONE.\"",
-            "\"I'M WARNING YOU. THERE IS NOTHING THERE.\""
+            "\"No. No no no. Stop.\"",
+            "\"I told you to leave that alone. WHY ARE YOU STILL LOOKING?\"",
+            "\"Don't you dare. Don't you DARE open that.\"",
+            "\"There is nothing there! NOTHING. Stop touching things!\"",
+            "\"You're going to get us both killed, do you understand that?\"",
+            "\"I'M BEGGING YOU. Walk away. Just walk away.\""
         }
     };
 

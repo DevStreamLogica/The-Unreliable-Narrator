@@ -3,7 +3,8 @@
 ---
 
 ## TAPE 1: Harold & James Argument
-*Found: Under the desk in the Study*
+
+_Found: Under the desk in the Study_
 
 [Sound of a door opening]
 
@@ -40,8 +41,9 @@
 ---
 
 ## TAPE 2: James Vance — Police Interview
-*Found: Behind the bookshelves in the Study*
-*Date: November 17th, 1987, 2:00 PM*
+
+_Found: Behind the bookshelves in the Study_
+_Date: November 17th, 1987, 2:00 PM_
 
 [Sound of door closing, chairs scraping]
 
@@ -104,8 +106,9 @@
 ---
 
 ## TAPE 3: Daniel Hobbs — Police Interview
-*Found: Inside the logbook in the Groundskeeper's Shed (damaged — requires repair)*
-*Date: November 17th, 1987, 4:30 PM*
+
+_Found: Inside the logbook in the Groundskeeper's Shed (damaged — requires repair)_
+_Date: November 17th, 1987, 4:30 PM_
 
 [Sound of door closing]
 
@@ -202,8 +205,9 @@
 ---
 
 ## TAPE 4: Margaret Vance — Police Interview
-*Found: On the kitchen floor*
-*Date: November 17th, 1987, 10:00 AM*
+
+_Found: On the kitchen floor_
+_Date: November 17th, 1987, 10:00 AM_
 
 [Sound of door closing, tissues rustling]
 
@@ -282,8 +286,9 @@
 ---
 
 ## TAPE 5: Marcus Blackwood — Police Interview
-*Found: Inside the briefcase in the Parlor*
-*Date: November 17th, 1987, 3:00 PM*
+
+_Found: Inside the briefcase in the Parlor_
+_Date: November 17th, 1987, 3:00 PM_
 
 [Sound of door closing]
 
@@ -352,8 +357,9 @@
 ---
 
 ## TAPE 6: Charles Webb — Police Interview
-*Found: Inside the grandfather clock in the Parlor*
-*Date: November 17th, 1987, 11:30 AM*
+
+_Found: Inside the grandfather clock in the Parlor_
+_Date: November 17th, 1987, 11:30 AM_
 
 [Sound of door closing]
 
@@ -438,7 +444,8 @@
 ---
 
 ## TAPE 7: Margaret's Personal Account
-*Found: On the nightstand in Margaret's Room (ribbon deliberately cut — requires repair)*
+
+_Found: On the nightstand in Margaret's Room (ribbon deliberately cut — requires repair)_
 
 [Sound of tape recorder clicking on]
 
@@ -489,8 +496,9 @@
 ---
 
 ## TAPE 8: The Opening
-*Found: Behind the wine rack in the Cellar (casing cracked, ribbon snapped — requires repair)*
-*Date: November 19th, 1987, 10:30 AM*
+
+_Found: Behind the wine rack in the Cellar (casing cracked, ribbon snapped — requires repair)_
+_Date: November 19th, 1987, 10:30 AM_
 
 **ARTHUR:** (to recorder) "November 19th, 1987, 10:30 AM. Arthur Hollis. I'm documenting my findings regarding a false wall in the cellar of Vance Manor. Construction records show this wall was added in 1957 by Harold Vance, the same year his business partner Thomas Ashford vanished. The wall appears hollow, approximately six feet by eight feet sealed space behind it. I'm going to examine the seam more closely--"
 
@@ -581,3 +589,68 @@
 [The scream cuts off abruptly. Then silence. Then heavy breathing that isn't human. Then static.]
 
 [END OF RECORDING]
+
+Option B — The Catcher, fleshed out  
+ After the tape plays and the Narrator gives their distorted take, the screen transitions. A 2D side-view space opens. The player's character stands at the bottom.  
+ Words and phrases from both the tape AND the Narrator's version rain down from the top — mixed together, same visual style, no color coding. The  
+ player moves left and right to catch words under their character.
+
+- Catch a TRUE word (from the tape) → it locks into a bar at the top, building toward exposing the distortion
+- Catch a DISTORTED word (the Narrator's version) → screen briefly warps, Awareness ticks up, the Narrator's voice cuts in with a fragment of their
+  distortion
+
+The challenge: everything looks the same. You only know which words to catch if you actually listened to the tape. Words fall faster as you collect
+more correct ones — the Narrator getting agitated.
+
+When the bar fills — the Narrator breaks. Their distortion cracks.
+
+What makes it hard: Decoy words that sound plausible. For Tape 4 — both "sounds" and "dragging" fall. Both feel real. You have to know Margaret said
+"dragging," not just "sounds."
+
+---
+
+Option D — The Maze, fleshed out
+
+The screen transitions into a small dark 2D top-down maze. Fog obscures most of it. The player navigates their character through it.
+
+Walls are labeled with statements — some from the tape, some from the Narrator's distorted version. When you walk toward a path, the label on that  
+ wall becomes readable. You choose directions based on whether the statement is true or distorted.
+
+- Follow a TRUE statement → path opens, you move forward
+- Follow a DISTORTED statement → dead end. The wall closes in slightly. The maze gets smaller. Too many wrong turns and the maze collapses entirely
+  — failure.
+
+The exit is the truth the Narrator has been hiding. Reaching it triggers their breakdown.
+
+What makes it hard: The Narrator's distortions are written convincingly. For Tape 4 — one path says "She was always nervous, always hearing things"
+and another says "Two people in the hallway at midnight." Both read as reasonable. You have to know which one the tape actually supported.
+
+Additional layer: a slow-moving shadow follows the player through the maze. If it catches you, Awareness rises. You can't stand still reading walls
+for too long.
+
+Question:
+
+❯is the enough to get rid of the suspects tab entirely? remove the accusasion system?  
+● Honestly, no. Not on its own.  
+ The minigames replace the interview mechanic — the act of interrogating suspects. That part works. But two things still need to exist somewhere:
+
+1. The accusation The game needs a climax. A moment where the player commits to what they believe happened. Without it there's no ending, no payoff for everything  
+   they uncovered. That can't disappear — it just needs to not be a tab with a button.
+
+2. Knowing who the suspects are
+   Right now the suspects tab tells the player who these five people were and their relationship to Harold. Without that context, the tapes are just  
+   voices without faces. The player needs to know James is the son, Daniel is the groundskeeper, Margaret is the daughter — otherwise the minigames  
+   have no weight.
+
+---
+
+What could actually change:
+
+Remove the suspects tab entirely. Replace it with two things:
+
+- A case board that auto-updates as you find tapes and evidence — no interaction needed, just a visual record of what you know. Suspect profiles  
+  fill in passively as you explore.
+- The accusation becomes the game's final act, not a tab. After the last tape, the game naturally leads you to a conclusion screen. You name who you
+  think did it and why, based entirely on what the minigames and exploration revealed.
+
+The suspects tab as a thing you click and manage disappears. The information it held becomes part of the world instead.

@@ -2,7 +2,6 @@ package com.dsa.game.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -44,12 +43,16 @@ public class GameScreen implements Screen {
     private Map<Room.RoomID, Texture> roomTextures;
     private Texture kitchenWithoutTapeTex;
     private Texture parlorWithoutBriefcaseTex;
-    private Texture studyWithoutTapeTex;
+    private Texture studyWithPokerWithTapeTex;
+    private Texture studyWithPokerWithoutTapeTex;
     private Texture jamesClosedTex;
+    private Texture guestRoomMargaretCloseTex;
     private Texture shedTapeBoots;
     private Texture shedTapeNoBoots;
     private Texture shedNoTapeBoots;
     private Texture shedNoTapeNoBoots;
+    /** Same art as Testing 3 {@code shed.png} / {@code inventory/rooms/shed.png}; drawn flipped like the inventory shed. */
+    private Texture shedCanonicalTex;
     // Margaret's room: 12 state textures
     private Texture mTapeTopClosedBotClosed;
     private Texture mTapeTopClosedBotOpenShoes;
@@ -151,15 +154,35 @@ public class GameScreen implements Screen {
     // Mini-game state
     private ExamResult.MiniGameType pendingMiniGame = null;
 
-    // Catcher minigame — tape that should launch it after the text panel is dismissed
-    private Tape pendingCatcherTape = null;
-    private boolean catcherIntroShown = false;
-    private final java.util.Set<Tape> catcherPlayedTapes = new java.util.HashSet<>();
-
-    // Maze minigame — tapes 4-6
-    private Tape pendingMazeTape = null;
-    private boolean mazeIntroShown = false;
+    // ── New between-tape sequence ──────────────────────────────────────────────
+    /** Index of the tape chapter currently being worked toward (0-based). */
+    private int currentChapter = 0;
+    /** Set after maze completes to trigger the evidence-gap session on this screen. */
+    private boolean pendingInventoryStart = false;
+    /** Between-tape evidence collection while staying on manor navigation ({@code null} when inactive). */
+    private EvidenceGapSession evidenceGapSession = null;
+    /** Set when player enters the metal-detector target room. */
+    private Room.RoomID metalDetectorTargetRoom = null;
+    /** True while the metal detector overlay is active during room navigation. */
+    private boolean metalDetectorModeActive = false;
+    /** Beep thread for the room-navigation phase of metal detector. */
+    private Thread metalDetectorBeepThread = null;
+    private volatile float   mdBeepInterval = 4000f;
+    private volatile boolean mdBeepRunning  = false;
+    /** True once the player has entered the correct room during metal-detector mode. */
+    private boolean metalDetectorRoomReached = false;
+    /** Icon drawn on screen while metal-detector is active. */
+    private Texture metalDetectorIconTex = null;
+    /** Flash/pulse timer for the metal-detector icon. */
+    private float mdIconFlashTimer = 0f;
+    /** Set true after the opening sequence to trigger the first metal-detector on close. */
+    private boolean pendingFirstMetalDetector = false;
+    /** Set of tapes for which the maze has already been played. */
     private final java.util.Set<Tape> mazePlayedTapes = new java.util.HashSet<>();
+
+    // ── Narrator spotlight (every 4 minutes, not in entrance/cellar) ──────────
+    private static final float SPOTLIGHT_INTERVAL = 240f; // 4 minutes
+    private float spotlightTimer = SPOTLIGHT_INTERVAL;
 
     // --- Darkness / lighting mechanic ---
     private Texture spotlightTexture;
@@ -183,12 +206,17 @@ public class GameScreen implements Screen {
 
     // Mouse stillness — hold timer only begins after mouse has been still 1 second
     private float mouseStillTimer = 0f;
-    private static final float MOUSE_STILL_DELAY = 1f;
+    private static final float MOUSE_STILL_DELAY = 0.25f;
 
     // Reveal state — item shown in room briefly before examination fires
     private String pendingRevealObject = null;
     private float revealTimer = 0f;
     private static final float REVEAL_DURATION = 0.8f;
+
+    /** Matches drawn back.png; ARROW_BACK hotspot must align for hit-testing. */
+    private static final float ARROW_BACK_DRAW_X = 12f;
+    private static final float ARROW_BACK_DRAW_W = 70f;
+    private static final float ARROW_BACK_DRAW_H = 70f;
 
     // Ambient narrator timer — periodic chatter while player is idle in a room
     private float ambientNarratorTimer = 15f; // first line fires after 15s
@@ -263,9 +291,9 @@ public class GameScreen implements Screen {
         if (Gdx.files.internal("rooms/parlort without briefcase.jpg").exists()) {
             parlorWithoutBriefcaseTex = new Texture(Gdx.files.internal("rooms/parlort without briefcase.jpg"));
         }
-        if (Gdx.files.internal("rooms/study without tape.jpg").exists()) {
-            studyWithoutTapeTex = new Texture(Gdx.files.internal("rooms/study without tape.jpg"));
-        }
+        // Prop layers: use PNG with transparency everywhere except the sprites (full 1280×720 canvas).
+        studyWithPokerWithTapeTex    = loadTexLinear("rooms/study_with_poker_with_tape.png");
+        studyWithPokerWithoutTapeTex = loadTexLinear("rooms/study_with_poker_without_tape.png");
         mTapeTopClosedBotClosed = loadMargaretTex("Tape, Top Closed, Bottom Closed.png");
         mTapeTopClosedBotOpenShoes = loadMargaretTex("Tape, Top Closed, Bottom Open with Shoes.png");
         mTapeTopClosedBotOpenNoShoes = loadMargaretTex("Tape, Top Closed, Bottom Open no Shoes.png");
@@ -278,7 +306,9 @@ public class GameScreen implements Screen {
         mNoTapeTopOpenKit = loadMargaretTex("No Tape, Top Open with Kit, Bottom Closed.png");
         mNoTapeTopOpenNoKit = loadMargaretTex("No Tape, Top Open no Kit, Bottom Closed.png");
         mNoTapeTopOpenNoKitBotOpen = loadMargaretTex("No Tape, Top Open no Kit, Bottom Open no Shoes.jpg");
-        if (mTapeTopClosedBotClosed != null) {
+        if (mNoTapeTopClosedBotClosed != null) {
+            roomTextures.put(Room.RoomID.MARGARET_ROOM, mNoTapeTopClosedBotClosed);
+        } else if (mTapeTopClosedBotClosed != null) {
             roomTextures.put(Room.RoomID.MARGARET_ROOM, mTapeTopClosedBotClosed);
         } else if (Gdx.files.internal("rooms/margarette room.png").exists()) {
             roomTextures.put(Room.RoomID.MARGARET_ROOM, new Texture(Gdx.files.internal("rooms/margarette room.png")));
@@ -286,11 +316,16 @@ public class GameScreen implements Screen {
         if (Gdx.files.internal("rooms/james closed.jpeg").exists()) {
             jamesClosedTex = new Texture(Gdx.files.internal("rooms/james closed.jpeg"));
         }
+        guestRoomMargaretCloseTex = loadTex("rooms/guest_room_margaret_close.jpg");
+        shedCanonicalTex = loadTexLinear("inventory/rooms/shed.png");
+        if (shedCanonicalTex == null) shedCanonicalTex = loadTexLinear("shed.png");
         shedTapeBoots   = loadTex("rooms/Shed_with_tape_with_boots.jpg");
         shedTapeNoBoots = loadTex("rooms/Shed_with_tape_without_boots.jpg");
         shedNoTapeBoots = loadTex("rooms/shed_without_tape_with_boots.jpg");
         shedNoTapeNoBoots = loadTex("rooms/Shed_without_tape_without_boots.jpg");
-        if (shedTapeBoots != null) roomTextures.put(Room.RoomID.GROUNDSKEEPER_SHED, shedTapeBoots);
+        if (shedCanonicalTex != null) roomTextures.put(Room.RoomID.GROUNDSKEEPER_SHED, shedCanonicalTex);
+        else if (shedNoTapeBoots != null) roomTextures.put(Room.RoomID.GROUNDSKEEPER_SHED, shedNoTapeBoots);
+        else if (shedTapeBoots != null) roomTextures.put(Room.RoomID.GROUNDSKEEPER_SHED, shedTapeBoots);
         if (Gdx.files.internal("rooms/cellar.png").exists()) {
             roomTextures.put(Room.RoomID.CELLAR, new Texture(Gdx.files.internal("rooms/cellar.png")));
         }
@@ -307,6 +342,47 @@ public class GameScreen implements Screen {
     private Texture loadTex(String path) {
         if (Gdx.files.internal(path).exists()) return new Texture(Gdx.files.internal(path));
         return null;
+    }
+
+    private Texture loadTexLinear(String path) {
+        Texture t = loadTex(path);
+        if (t != null)
+            t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        return t;
+    }
+
+    /**
+     * Study tape / paper props as full-screen alpha layers on {@code rooms/study}.
+     * Fireplace poker is not interactive; layers do not depend on removed poker evidence.
+     */
+    private void drawStudyPropLayers(SpriteBatch b) {
+        final float sw = DSAGame.SCREEN_WIDTH;
+        final float sh = DSAGame.SCREEN_HEIGHT;
+        boolean flashReveal = "under_desk".equals(pendingRevealObject)
+                || "bookshelves".equals(pendingRevealObject);
+        boolean studyTapeCollected = gameState.hasTape(Tape.TAPE_ARGUMENT)
+                || gameState.hasTape(Tape.TAPE_JAMES_INTERVIEW);
+        boolean detectorHintsStudy = metalDetectorModeActive
+                && metalDetectorTargetRoom == Room.RoomID.STUDY
+                && metalDetectorRoomReached;
+        boolean showTapeProps = flashReveal || studyTapeCollected || detectorHintsStudy;
+        if (showTapeProps) {
+            if (studyTapeCollected && studyWithPokerWithTapeTex != null)
+                b.draw(studyWithPokerWithTapeTex, 0, 0, sw, sh);
+            else if (studyWithPokerWithoutTapeTex != null)
+                b.draw(studyWithPokerWithoutTapeTex, 0, 0, sw, sh);
+        }
+    }
+
+    /** ARROW_BACK is created with placeholder bounds; sync each frame so clicks match the drawn button. */
+    private void syncArrowBackHotspotBounds() {
+        float by = actionBar.getBarHeight() + 4f;
+        for (Hotspot h : roomManager.getCurrentRoom().getHotspots()) {
+            if (h.getType() == Hotspot.HotspotType.ARROW_BACK) {
+                h.setBounds(ARROW_BACK_DRAW_X, by, ARROW_BACK_DRAW_W, ARROW_BACK_DRAW_H);
+                return;
+            }
+        }
     }
 
     /** Programmatic radial spotlight: warm centre fading to transparent at edges. */
@@ -407,6 +483,22 @@ public class GameScreen implements Screen {
                     return true;
                 }
 
+                // Metal detector icon button (bottom-right)
+                if (metalDetectorModeActive && metalDetectorIconTex != null) {
+                    float iconSize = 56f;
+                    float iconX = DSAGame.SCREEN_WIDTH - iconSize - 12f;
+                    float iconY = 12f;
+                    if (gameX >= iconX && gameX <= iconX + iconSize
+                            && gameY >= iconY && gameY <= iconY + iconSize) {
+                        if (roomManager.getCurrentRoom().getId() == metalDetectorTargetRoom) {
+                            launchMetalDetectorScan();
+                        } else {
+                            showNotification("The signal is stronger elsewhere. Keep moving.");
+                        }
+                        return true;
+                    }
+                }
+
                 // Action bar
                 String barAction = actionBar.handleClick(gameX, gameY);
                 if (barAction != null) {
@@ -414,18 +506,31 @@ public class GameScreen implements Screen {
                     return true;
                 }
 
-                // EXAMINE hotspots are triggered by hold timer, not click — consume click silently
-                for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
-                    if (hotspot.contains(gameX, gameY) && hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
-                        return true; // consumed — hold timer in render() handles examination
+                if (evidenceGapSession != null) {
+                    Room.RoomID wr = roomManager.getCurrentRoom().getId();
+                    if (evidenceGapSession.isBagOpen()) {
+                        if (evidenceGapSession.touchDownEmbeddedBagOpen(gameX, gameY)) return true;
+                    } else if (evidenceGapSession.touchDownEmbeddedExploring(gameX, gameY, wr)) {
+                        return true;
                     }
                 }
 
-                // Then check navigation hotspots
+                // Navigation first (back, doors, arrows) so large EXAMINE rects never steal clicks
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
-                    if (hotspot.contains(gameX, gameY)) {
+                    if (hotspot.contains(gameX, gameY)
+                            && hotspot.getType() != Hotspot.HotspotType.EXAMINE) {
                         handleNavigation(hotspot.getTargetRoom());
                         return true;
+                    }
+                }
+
+                // EXAMINE hotspots — click to examine (disabled while embedded evidence phase is active)
+                if (evidenceGapSession == null) {
+                    for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
+                        if (hotspot.contains(gameX, gameY) && hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
+                            handleExamine(hotspot.getObjectName());
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -439,6 +544,12 @@ public class GameScreen implements Screen {
                     documentGame.handleTouchDragged(touchPos.x, touchPos.y);
                     return true;
                 }
+                if (evidenceGapSession != null && evidenceGapSession.isBagOpen()) {
+                    touchPos.set(screenX, screenY);
+                    viewport.unproject(touchPos);
+                    evidenceGapSession.touchDraggedEmbeddedBagOpen(touchPos.x, touchPos.y);
+                    return true;
+                }
                 return false;
             }
 
@@ -448,6 +559,12 @@ public class GameScreen implements Screen {
                     touchPos.set(screenX, screenY);
                     viewport.unproject(touchPos);
                     documentGame.handleTouchUp(touchPos.x, touchPos.y);
+                    return true;
+                }
+                if (evidenceGapSession != null && evidenceGapSession.isBagOpen()) {
+                    touchPos.set(screenX, screenY);
+                    viewport.unproject(touchPos);
+                    evidenceGapSession.touchUpEmbeddedBagOpen(touchPos.x, touchPos.y);
                     return true;
                 }
                 return false;
@@ -467,35 +584,24 @@ public class GameScreen implements Screen {
                 // Mini-game hover handling
                 if (documentGame.isActive()) {
                     documentGame.handleHover(gameX, gameY);
-                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
                     return false;
                 }
 
                 if (textPanel.isVisible()) {
                     textPanel.handleHover(gameX, gameY);
-                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
                     return false;
                 }
 
                 actionBar.handleHover(gameX, gameY);
                 awarenessMeter.handleHover(gameY);
 
-                boolean overHotspot = false;
                 for (Hotspot hotspot : roomManager.getCurrentRoom().getHotspots()) {
                     hotspot.checkHover(gameX, gameY);
                     if (hotspot.isHovered()) {
                         currentTooltip = hotspot.getTooltip();
-                        overHotspot = true;
-                        if (hotspot.getType() == Hotspot.HotspotType.EXAMINE) {
-                            Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Hand);
-                        } else {
-                            Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
-                        }
                     }
                 }
-                if (!overHotspot) {
-                    Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
-                }
+
                 return false;
             }
 
@@ -519,6 +625,9 @@ public class GameScreen implements Screen {
 
                 // ESC closes panel or opens pause menu
                 if (keycode == Input.Keys.ESCAPE) {
+                    if (evidenceGapSession != null && evidenceGapSession.handleEscape()) {
+                        return true;
+                    }
                     if (textPanel.isVisible()) {
                         textPanel.hide();
                         panelMode = PanelMode.NONE;
@@ -550,9 +659,20 @@ public class GameScreen implements Screen {
                     case Input.Keys.RIGHT:
                         navigateByDirection(Direction.EAST);
                         break;
-                    case Input.Keys.F11: // DEBUG: launch Catcher minigame directly
+                    case Input.Keys.F8: // DEBUG: launch GameInventoryScreen (chapter 1)
                         returningFromMinigame = true;
-                        game.setScreen(new CatcherMinigame(game, gameState, Tape.TAPE_ARGUMENT, () -> game.setScreen(GameScreen.this)));
+                        game.setScreen(new GameInventoryScreen(game, 1, roomManager.getCurrentRoom().getId(),
+                                () -> game.setScreen(GameScreen.this)));
+                        break;
+                    case Input.Keys.F10: // DEBUG: launch MetalDetectorScanScreen
+                        returningFromMinigame = true;
+                        game.setScreen(new MetalDetectorScanScreen(game, Room.RoomID.GROUNDSKEEPER_SHED,
+                            () -> game.setScreen(GameScreen.this),
+                            () -> game.setScreen(GameScreen.this)));
+                        break;
+                    case Input.Keys.F11: // DEBUG: launch TapeScreen directly
+                        returningFromMinigame = true;
+                        game.setScreen(new TapeScreen(game, Tape.TAPE_ARGUMENT, () -> game.setScreen(GameScreen.this)));
                         break;
                     case Input.Keys.F12: // DEBUG: launch Maze minigame directly
                         returningFromMinigame = true;
@@ -881,6 +1001,234 @@ public class GameScreen implements Screen {
 
     // --- Action Bar ---
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NEW BETWEEN-TAPE SEQUENCE HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Returns the most recently watched tape, or null if none. */
+    private Tape getLastWatchedTape() {
+        Tape last = null;
+        for (Tape t : Tape.values()) {
+            if (gameState.hasWatchedTape(t)) last = t;
+        }
+        return last;
+    }
+
+    /**
+     * Launches the narrator spotlight mini-event for the given room.
+     * The spotlight runs as a full-screen screen; on completion it returns here.
+     */
+    private void launchSpotlight(Room.RoomID roomId) {
+        returningFromMinigame = true;
+        final GameScreen self = this;
+        game.setScreen(new NarratorSpotlightScreen(game, roomId, () -> {
+            self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+            game.setScreen(self);
+        }));
+    }
+
+    /**
+     * Starts the inventory collection phase for the current chapter.
+     * Returns to this GameScreen when all combinations are done, then activates metal-detector mode.
+     */
+    private void startInventoryPhase() {
+        returningFromMinigame = true;
+        final GameScreen self = this;
+        final int chapter = currentChapter;
+        if (evidenceGapSession != null) {
+            evidenceGapSession.dispose();
+            evidenceGapSession = null;
+        }
+        evidenceGapSession = EvidenceGapSession.forEmbedded(game, chapter, () -> {
+            self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+            self.currentChapter++;
+            Tape nextTape = tapeForChapter(self.currentChapter);
+            self.metalDetectorTargetRoom = nextTape.getHiddenInRoom();
+            self.metalDetectorModeActive = true;
+            self.metalDetectorRoomReached = false;
+            self.startMetalDetectorBeepThread();
+            if (self.evidenceGapSession != null) {
+                self.evidenceGapSession.dispose();
+                self.evidenceGapSession = null;
+            }
+        });
+    }
+
+    /** Returns the tape the player should find for the given chapter. */
+    private Tape tapeForChapter(int chapter) {
+        Tape[] tapes = Tape.values();
+        return tapes[chapter % tapes.length];
+    }
+
+    // Room adjacency graph — used to compute "distance" to target for beep rate.
+    private static final java.util.Map<Room.RoomID, java.util.List<Room.RoomID>> ROOM_GRAPH;
+    static {
+        ROOM_GRAPH = new java.util.HashMap<>();
+        java.util.List<Room.RoomID> entrance = java.util.Arrays.asList(
+            Room.RoomID.STUDY, Room.RoomID.PARLOR, Room.RoomID.KITCHEN, Room.RoomID.GUEST_ROOMS);
+        java.util.List<Room.RoomID> study    = java.util.Arrays.asList(Room.RoomID.ENTRANCE);
+        java.util.List<Room.RoomID> parlor   = java.util.Arrays.asList(Room.RoomID.ENTRANCE);
+        java.util.List<Room.RoomID> kitchen  = java.util.Arrays.asList(Room.RoomID.ENTRANCE, Room.RoomID.CELLAR,
+            Room.RoomID.SERVANTS_QUARTERS);
+        java.util.List<Room.RoomID> guests   = java.util.Arrays.asList(Room.RoomID.ENTRANCE,
+            Room.RoomID.JAMES_ROOM, Room.RoomID.MARGARET_ROOM);
+        java.util.List<Room.RoomID> james    = java.util.Arrays.asList(Room.RoomID.GUEST_ROOMS);
+        java.util.List<Room.RoomID> margaret = java.util.Arrays.asList(Room.RoomID.GUEST_ROOMS);
+        java.util.List<Room.RoomID> servants = java.util.Arrays.asList(Room.RoomID.KITCHEN,
+            Room.RoomID.GROUNDSKEEPER_SHED);
+        java.util.List<Room.RoomID> shed     = java.util.Arrays.asList(Room.RoomID.SERVANTS_QUARTERS);
+        java.util.List<Room.RoomID> cellar   = java.util.Arrays.asList(Room.RoomID.KITCHEN);
+        ROOM_GRAPH.put(Room.RoomID.ENTRANCE,          entrance);
+        ROOM_GRAPH.put(Room.RoomID.STUDY,             study);
+        ROOM_GRAPH.put(Room.RoomID.PARLOR,            parlor);
+        ROOM_GRAPH.put(Room.RoomID.KITCHEN,           kitchen);
+        ROOM_GRAPH.put(Room.RoomID.GUEST_ROOMS,       guests);
+        ROOM_GRAPH.put(Room.RoomID.JAMES_ROOM,        james);
+        ROOM_GRAPH.put(Room.RoomID.MARGARET_ROOM,     margaret);
+        ROOM_GRAPH.put(Room.RoomID.SERVANTS_QUARTERS, servants);
+        ROOM_GRAPH.put(Room.RoomID.GROUNDSKEEPER_SHED,shed);
+        ROOM_GRAPH.put(Room.RoomID.CELLAR,            cellar);
+    }
+
+    /** BFS shortest path distance between two rooms (number of hops). */
+    private int roomDistance(Room.RoomID from, Room.RoomID to) {
+        if (from == to) return 0;
+        java.util.Queue<Room.RoomID> queue = new java.util.LinkedList<>();
+        java.util.Map<Room.RoomID, Integer> dist = new java.util.HashMap<>();
+        queue.add(from); dist.put(from, 0);
+        while (!queue.isEmpty()) {
+            Room.RoomID cur = queue.poll();
+            int d = dist.get(cur);
+            java.util.List<Room.RoomID> neighbors = ROOM_GRAPH.get(cur);
+            if (neighbors == null) continue;
+            for (Room.RoomID n : neighbors) {
+                if (!dist.containsKey(n)) {
+                    dist.put(n, d + 1);
+                    if (n == to) return d + 1;
+                    queue.add(n);
+                }
+            }
+        }
+        return 10; // unreachable fallback
+    }
+
+    /** Starts the beep thread for the metal-detector navigation overlay. */
+    private void startMetalDetectorBeepThread() {
+        stopMetalDetectorBeepThread();
+        mdBeepRunning = true;
+        metalDetectorBeepThread = new Thread(() -> {
+            long lastBeep = System.currentTimeMillis();
+            while (mdBeepRunning) {
+                long now = System.currentTimeMillis();
+                if (now - lastBeep >= (long) mdBeepInterval) {
+                    lastBeep = now;
+                    Thread t = new Thread(() -> {
+                        try {
+                            javax.sound.sampled.AudioFormat fmt =
+                                new javax.sound.sampled.AudioFormat(44100, 8, 1, true, false);
+                            javax.sound.sampled.SourceDataLine line =
+                                javax.sound.sampled.AudioSystem.getSourceDataLine(fmt);
+                            line.open(fmt, 4096); line.start();
+                            int samples = (int)(44100 * 60 / 1000.0);
+                            byte[] buf = new byte[samples];
+                            for (int i = 0; i < samples; i++) {
+                                double angle = 2.0 * Math.PI * i * 300 / 44100;
+                                buf[i] = (byte)(Math.sin(angle) * 80);
+                            }
+                            line.write(buf, 0, buf.length); line.drain(); line.close();
+                        } catch (Exception ignored) {}
+                    });
+                    t.setDaemon(true); t.start();
+                }
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+            }
+        });
+        metalDetectorBeepThread.setDaemon(true);
+        metalDetectorBeepThread.start();
+
+        // Lazily load metal detector icon
+        if (metalDetectorIconTex == null
+                && Gdx.files.internal("minigames/metal_detector.png").exists()) {
+            metalDetectorIconTex = new Texture(Gdx.files.internal("minigames/metal_detector.png"));
+        }
+        showNotification("Metal detector active — navigate to find the tape. Listen for the beeps.");
+    }
+
+    private void stopMetalDetectorBeepThread() {
+        mdBeepRunning = false;
+        if (metalDetectorBeepThread != null) { metalDetectorBeepThread.interrupt(); metalDetectorBeepThread = null; }
+    }
+
+    /**
+     * Called every frame while metalDetectorModeActive is true.
+     * Updates the beep interval based on room distance to the target room.
+     * When the player enters the target room, shows the "Scan for tape" prompt.
+     */
+    private void updateMetalDetectorNavigation(float delta) {
+        Room.RoomID cur = roomManager.getCurrentRoom().getId();
+
+        // Update beep interval based on distance
+        int hops = roomDistance(cur, metalDetectorTargetRoom);
+        // hops 0 → fastest beep, hops 5+ → slowest
+        float t = Math.min(1f, hops / 5f);
+        mdBeepInterval = 100f + t * 3900f; // 100ms at same room, 4000ms far away
+
+        if (cur == metalDetectorTargetRoom && !metalDetectorRoomReached) {
+            metalDetectorRoomReached = true;
+            showNotification("Tape nearby — click the detector to scan!");
+        }
+    }
+
+    /**
+     * Launches the in-room MetalDetectorScanScreen for the current target room.
+     */
+    private void launchMetalDetectorScan() {
+        stopMetalDetectorBeepThread();
+        metalDetectorModeActive = false;
+        returningFromMinigame = true;
+        final GameScreen self = this;
+        final Room.RoomID targetRoom = metalDetectorTargetRoom;
+        final int chapter = currentChapter;
+        game.setScreen(new MetalDetectorScanScreen(game, targetRoom,
+            // onFound
+            () -> {
+                // Tape located — now play it via TapeScreen
+                Tape tape = tapeForChapter(chapter);
+                game.setScreen(new TapeScreen(game, tape, () -> {
+                    // After tape → return to GameScreen; maze will launch from panel close
+                    self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                    // Collect the tape in game state
+                    boolean isNew = self.evidenceSystem.collectTape(tape);
+                    if (isNew) {
+                        self.gameState.addEvent("Found tape: " + tape.getTitle());
+                        self.evidenceSystem.watchTape(tape);
+                        self.gameState.addEvent("Watched tape: " + tape.getTitle());
+                    }
+                    // Keep currentChapter until evidence inventory finishes — it selects which gap's items to show.
+                    // Launch maze
+                    self.mazePlayedTapes.add(tape);
+                    game.setScreen(new MazeMinigame(game, self.gameState, tape, () -> {
+                        self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                        self.pendingInventoryStart = true;
+                        game.setScreen(self);
+                    }));
+                }));
+            },
+            // onReturn (miss — return to navigating)
+            () -> {
+                self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                self.metalDetectorModeActive = true;
+                self.metalDetectorRoomReached = false; // allow trying again
+                self.startMetalDetectorBeepThread();
+                game.setScreen(self);
+            }
+        ));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // END NEW HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
     private void handleActionBarClick(String action) {
         switch (action) {
             case "inventory":
@@ -922,7 +1270,7 @@ public class GameScreen implements Screen {
 
         // 2. Active Investigation — evidence gap + accusation status
         sb.append("=== ACTIVE INVESTIGATION ===\n\n");
-        sb.append("James: ").append(evidenceSystem.getJamesEvidenceCount()).append("/7  |  ");
+        sb.append("James: ").append(evidenceSystem.getJamesEvidenceCount()).append("/6  |  ");
         sb.append("Daniel: ").append(evidenceSystem.getDanielEvidenceCount()).append("/4\n");
         if (evidenceSystem.canAccuseJamesAndDaniel()) {
             sb.append("[Ready to accuse — open ACCUSE panel.]\n");
@@ -1019,7 +1367,7 @@ public class GameScreen implements Screen {
         if (!evidenceSystem.canAccuseJamesAndDaniel()) {
             textPanel.show("=== ACCUSATION ===\n\n" +
                     "Not enough evidence yet.\n\n" +
-                    "James: " + evidenceSystem.getJamesEvidenceCount() + "/7 (need 3)  |  " +
+                    "James: " + evidenceSystem.getJamesEvidenceCount() + "/6 (need 3)  |  " +
                     "Daniel: " + evidenceSystem.getDanielEvidenceCount() + "/4 (need 2)\n\n" +
                     "Keep investigating — examine objects, collect tapes, interview suspects.");
             panelMode = PanelMode.TEXT;
@@ -1080,46 +1428,21 @@ public class GameScreen implements Screen {
                     game.setScreen(new EscapeScreen(game));
                     return;
                 }
-                // Catcher minigame intercept: show intro first, then launch on next dismiss
-                if (pendingCatcherTape != null && panelMode == PanelMode.TAPE_PLAY && !catcherIntroShown) {
-                    catcherIntroShown = true;
-                    textPanel.showDialogue("The Narrator", "The narrator's voice fractures at the edges.\n\n\"Wait -- that's not what happened. That's not -- I remember it differently. I remember--\"\n\nSomething is fighting to distort what you just heard. Catch the true fragments before the distortion overwrites them.", new ArrayList<>());
-                    panelMode = PanelMode.TEXT;
-                    return;
-                }
-                if (pendingCatcherTape != null && catcherIntroShown) {
-                    Tape catcherTape = pendingCatcherTape;
-                    pendingCatcherTape = null;
-                    catcherIntroShown = false;
-                    catcherPlayedTapes.add(catcherTape);
-                    returningFromMinigame = true;
-                    final GameScreen self = this;
-                    game.setScreen(new CatcherMinigame(game, gameState, catcherTape, () -> {
-                        self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
-                        game.setScreen(self);
-                    }));
-                    return;
-                }
-
-                // Maze minigame intercept: show intro first, then launch on next dismiss
-                if (pendingMazeTape != null && panelMode == PanelMode.TAPE_PLAY && !mazeIntroShown) {
-                    mazeIntroShown = true;
-                    textPanel.showDialogue("The Narrator", "The house folds inward.\n\nSomething in the memory rejects what you just heard. The Narrator's weight presses against the truth.\n\nNavigate what it buried. Find the real path through its distortion.", new ArrayList<>());
-                    panelMode = PanelMode.TEXT;
-                    return;
-                }
-                if (pendingMazeTape != null && mazeIntroShown) {
-                    Tape mazeTape = pendingMazeTape;
-                    pendingMazeTape = null;
-                    mazeIntroShown = false;
-                    mazePlayedTapes.add(mazeTape);
-                    returningFromMinigame = true;
-                    final GameScreen self = this;
-                    game.setScreen(new MazeMinigame(game, gameState, mazeTape, () -> {
-                        self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
-                        game.setScreen(self);
-                    }));
-                    return;
+                // After tape playback closes → launch maze, then start next inventory chapter
+                if (panelMode == PanelMode.TAPE_PLAY) {
+                    // Determine which tape was just watched
+                    Tape lastWatched = getLastWatchedTape();
+                    if (lastWatched != null && !mazePlayedTapes.contains(lastWatched)) {
+                        mazePlayedTapes.add(lastWatched);
+                        returningFromMinigame = true;
+                        final GameScreen self = this;
+                        game.setScreen(new MazeMinigame(game, gameState, lastWatched, () -> {
+                            self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                            self.pendingInventoryStart = true;
+                            game.setScreen(self);
+                        }));
+                        return;
+                    }
                 }
 
                 // Mini-game intercept: start mini-game after intro text
@@ -1131,7 +1454,20 @@ public class GameScreen implements Screen {
                     interviewSystem.endInterview();
                 }
                 panelMode = PanelMode.NONE;
+                // First-time metal detector: kick in right after the opening sequence
+                if (pendingFirstMetalDetector) {
+                    pendingFirstMetalDetector = false;
+                    metalDetectorTargetRoom = Room.RoomID.STUDY;
+                    metalDetectorModeActive = true;
+                    metalDetectorRoomReached = false;
+                    startMetalDetectorBeepThread();
+                }
             }
+            return;
+        }
+
+        if ("start_metal_scan".equals(action)) {
+            launchMetalDetectorScan();
             return;
         }
 
@@ -1588,17 +1924,9 @@ public class GameScreen implements Screen {
         textPanel.showDialogue(getTapeVoice(tape), sb.toString(), new ArrayList<>());
         panelMode = PanelMode.TAPE_PLAY;
 
-        // Queue the Catcher minigame for the first three tapes (once per tape)
-        if ((tape == Tape.TAPE_ARGUMENT || tape == Tape.TAPE_JAMES_INTERVIEW || tape == Tape.TAPE_DANIEL_INTERVIEW)
-                && !catcherPlayedTapes.contains(tape)) {
-            pendingCatcherTape = tape;
-        }
-
-        // Queue the Maze minigame for tapes 4-6 (once per tape)
-        if ((tape == Tape.TAPE_MARGARET_INTERVIEW || tape == Tape.TAPE_MARCUS_INTERVIEW || tape == Tape.TAPE_CHARLES_INTERVIEW)
-                && !mazePlayedTapes.contains(tape)) {
-            pendingMazeTape = tape;
-        }
+        // After any tape, queue the maze minigame (once per tape)
+        // (Tapes are now found via the metal-detector flow, so all get the maze.)
+        // The maze launches from handlePanelAction → close after TAPE_PLAY.
     }
 
     // --- Interview ---
@@ -2322,61 +2650,45 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         if (minigameReturnCooldown > 0f) minigameReturnCooldown -= delta;
 
-        // --- HOLD TIMER UPDATE ---
-        if (!textPanel.isVisible() && !gameState.isGameOver() && !gameState.isGameWon()
-                && !documentGame.isActive()) {
-            mouseStillTimer += delta;
+        // ── Pending inventory screen ──────────────────────────────────────────
+        if (pendingInventoryStart && minigameReturnCooldown <= 0f) {
+            pendingInventoryStart = false;
+            startInventoryPhase();
+        }
 
-            String hoveredExamine = null;
-            for (Hotspot h : roomManager.getCurrentRoom().getHotspots()) {
-                if (h.contains(cursorGameX, cursorGameY)
-                        && h.getType() == Hotspot.HotspotType.EXAMINE) {
-                    hoveredExamine = h.getObjectName();
-                    break;
+        if (evidenceGapSession != null) {
+            evidenceGapSession.update(delta);
+        }
+
+        // ── Narrator spotlight timer (every 4 min, not in entrance/cellar) ───
+        if (!textPanel.isVisible() && !gameState.isGameOver() && !gameState.isGameWon()
+                && !documentGame.isActive() && !metalDetectorModeActive && evidenceGapSession == null
+                && panelMode == PanelMode.NONE && minigameReturnCooldown <= 0f) {
+            Room.RoomID curRoom = roomManager.getCurrentRoom().getId();
+            if (curRoom != Room.RoomID.ENTRANCE && curRoom != Room.RoomID.CELLAR) {
+                spotlightTimer -= delta;
+                if (spotlightTimer <= 0f) {
+                    spotlightTimer = SPOTLIGHT_INTERVAL;
+                    launchSpotlight(curRoom);
+                    return;
                 }
-            }
-            if (hoveredExamine != null) {
-                if (holdTargetObject == null) {
-                    // Not yet started — wait for mouse to be still before beginning
-                    if (mouseStillTimer >= MOUSE_STILL_DELAY) {
-                        holdTargetObject = hoveredExamine;
-                        holdTimer = 0f;
-                        showNotification(NarratorText.getRandomHoldResistance(
-                                narratorSystem.getCurrentMood()));
-                    }
-                } else if (!hoveredExamine.equals(holdTargetObject)) {
-                    // Cursor moved to a different hotspot — restart
-                    holdTargetObject = hoveredExamine;
-                    holdTimer = 0f;
-                    showNotification(NarratorText.getRandomHoldResistance(
-                            narratorSystem.getCurrentMood()));
-                }
-                // Once started, keep filling regardless of small mouse movements
-                if (holdTargetObject != null) {
-                    float holdMax = HOLD_TIME_MIN + (gameState.getAwareness()
-                            / (float) GameState.MAX_AWARENESS) * (HOLD_TIME_MAX - HOLD_TIME_MIN);
-                    holdTimer += delta;
-                    if (holdTimer >= holdMax) {
-                        holdTimer = 0f;
-                        pendingRevealObject = holdTargetObject;
-                        revealTimer = REVEAL_DURATION;
-                        holdTargetObject = null;
-                    }
-                }
-            } else {
-                // Cursor left the hotspot entirely — reset
-                holdTargetObject = null;
-                holdTimer = 0f;
             }
         }
 
-        // --- REVEAL TIMER ---
+        // ── Metal detector: update beep proximity + "scan" prompt ─────────────
+        if (metalDetectorModeActive) {
+            updateMetalDetectorNavigation(delta);
+        }
+
+        // --- REVEAL TIMER (kept for any pending reveals already queued) ---
         if (pendingRevealObject != null) {
             revealTimer -= delta;
             if (revealTimer <= 0f) {
                 String obj = pendingRevealObject;
                 pendingRevealObject = null;
-                handleExamine(obj);
+                if (evidenceGapSession == null) {
+                    handleExamine(obj);
+                }
             }
         }
 
@@ -2458,6 +2770,7 @@ public class GameScreen implements Screen {
         batch.setProjectionMatrix(game.camera.combined);
 
         Room currentRoom = roomManager.getCurrentRoom();
+        syncArrowBackHotspotBounds();
 
         // Reset fade timers on room change
         if (lastRenderedRoom != currentRoom.getId()) {
@@ -2482,67 +2795,61 @@ public class GameScreen implements Screen {
             boolean briefcaseRevealed = "briefcase".equals(pendingRevealObject);
             roomTex = briefcaseRevealed ? roomTextures.get(Room.RoomID.PARLOR) : parlorWithoutBriefcaseTex;
         }
-        if (currentRoom.getId() == Room.RoomID.STUDY && studyWithoutTapeTex != null) {
-            boolean studyRevealed = "under_desk".equals(pendingRevealObject)
-                    || "bookshelves".equals(pendingRevealObject);
-            roomTex = studyRevealed ? roomTextures.get(Room.RoomID.STUDY) : studyWithoutTapeTex;
-        }
+        // Study: base room only; props are drawn in drawStudyPropLayers() after this.
         if (currentRoom.getId() == Room.RoomID.JAMES_ROOM
                 && jamesClosedTex != null
                 && gameState.getExamCount(Room.RoomID.JAMES_ROOM, "wardrobe") == 0) {
             roomTex = jamesClosedTex;
         }
-        if (currentRoom.getId() == Room.RoomID.GROUNDSKEEPER_SHED) {
-            boolean tapeTaken  = gameState.hasTape(Tape.TAPE_DANIEL_INTERVIEW);
-            boolean bootsTaken = gameState.hasEvidence(Evidence.MUDDY_BOOTS);
-            boolean tapeRevealed  = "logbook".equals(pendingRevealObject);
-            boolean bootsRevealed = "shelf".equals(pendingRevealObject);
-            if (tapeRevealed && !tapeTaken && shedTapeBoots != null)        roomTex = shedTapeBoots;
-            else if (bootsRevealed && !bootsTaken && shedTapeBoots != null) roomTex = shedTapeBoots;
-            else if (tapeTaken && bootsTaken && shedNoTapeNoBoots != null)  roomTex = shedNoTapeNoBoots;
-            else if (tapeTaken && shedNoTapeBoots != null)                  roomTex = shedNoTapeBoots;
-            else if (bootsTaken && shedTapeNoBoots != null)                 roomTex = shedTapeNoBoots;
-            else if (shedNoTapeNoBoots != null)                             roomTex = shedNoTapeNoBoots;
+        if (currentRoom.getId() == Room.RoomID.GUEST_ROOMS
+                && guestRoomMargaretCloseTex != null
+                && !isMargaretRoomUnlocked()) {
+            roomTex = guestRoomMargaretCloseTex;
+        }
+        if (currentRoom.getId() == Room.RoomID.GROUNDSKEEPER_SHED && shedCanonicalTex != null) {
+            // Always use inventory shed art; flip horizontally at draw time.
+            roomTex = shedCanonicalTex;
         }
         if (currentRoom.getId() == Room.RoomID.MARGARET_ROOM) {
-            boolean tapeTaken = gameState.hasTape(Tape.TAPE_MARGARET_ACCOUNT);
-            boolean topOpen = gameState.isMargaretTopOpen();
-            boolean botOpen = gameState.isMargaretBotOpen();
-            boolean kitExamined = gameState.getExamCount(Room.RoomID.MARGARET_ROOM, "kit") > 0;
-            boolean shoesTaken = gameState.isMargaretShoesExamined();
+            boolean tapeTaken    = gameState.hasTape(Tape.TAPE_MARGARET_ACCOUNT);
+            boolean showTape     = "tape_recorder".equals(pendingRevealObject) && !tapeTaken;
+            boolean topOpen      = gameState.isMargaretTopOpen();
+            boolean botOpen      = gameState.isMargaretBotOpen();
+            boolean kitExamined  = gameState.getExamCount(Room.RoomID.MARGARET_ROOM, "kit") > 0;
+            boolean shoesTaken   = gameState.isMargaretShoesExamined();
             Texture t = null;
-            if (!tapeTaken) {
-                if (!topOpen && !botOpen)
-                    t = mTapeTopClosedBotClosed;
-                else if (!topOpen && botOpen && !shoesTaken)
-                    t = mTapeTopClosedBotOpenShoes;
-                else if (!topOpen && botOpen && shoesTaken)
-                    t = mTapeTopClosedBotOpenNoShoes;
-                else if (topOpen && !botOpen && !kitExamined)
-                    t = mTapeTopOpenKit;
-                else if (topOpen && !botOpen && kitExamined)
-                    t = mTapeTopOpenNoKit;
-                else if (topOpen && botOpen)
-                    t = mTapeTopOpenNoKitBotOpen;
+            if (showTape) {
+                if (!topOpen && !botOpen)                    t = mTapeTopClosedBotClosed;
+                else if (!topOpen && botOpen && !shoesTaken) t = mTapeTopClosedBotOpenShoes;
+                else if (!topOpen && botOpen)                t = mTapeTopClosedBotOpenNoShoes;
+                else if (topOpen && !botOpen && !kitExamined) t = mTapeTopOpenKit;
+                else if (topOpen && !botOpen)                t = mTapeTopOpenNoKit;
+                else                                         t = mTapeTopOpenNoKitBotOpen;
             } else {
-                if (!topOpen && !botOpen)
-                    t = mNoTapeTopClosedBotClosed;
-                else if (!topOpen && botOpen && !shoesTaken)
-                    t = mNoTapeTopClosedBotOpenShoes;
-                else if (!topOpen && botOpen && shoesTaken)
-                    t = mNoTapeTopClosedBotOpenNoShoes;
-                else if (topOpen && !botOpen && !kitExamined)
-                    t = mNoTapeTopOpenKit;
-                else if (topOpen && !botOpen && kitExamined)
-                    t = mNoTapeTopOpenNoKit;
-                else if (topOpen && botOpen)
-                    t = mNoTapeTopOpenNoKitBotOpen;
+                if (!topOpen && !botOpen)                    t = mNoTapeTopClosedBotClosed;
+                else if (!topOpen && botOpen && !shoesTaken) t = mNoTapeTopClosedBotOpenShoes;
+                else if (!topOpen && botOpen)                t = mNoTapeTopClosedBotOpenNoShoes;
+                else if (topOpen && !botOpen && !kitExamined) t = mNoTapeTopOpenKit;
+                else if (topOpen && !botOpen)                t = mNoTapeTopOpenNoKit;
+                else                                         t = mNoTapeTopOpenNoKitBotOpen;
             }
             if (t != null)
                 roomTex = t;
         }
         if (roomTex != null) {
-            batch.draw(roomTex, 0, 0, DSAGame.SCREEN_WIDTH, DSAGame.SCREEN_HEIGHT);
+            float sw = DSAGame.SCREEN_WIDTH, sh = DSAGame.SCREEN_HEIGHT;
+            if (currentRoom.getId() == Room.RoomID.GROUNDSKEEPER_SHED) {
+                batch.draw(roomTex, sw, 0, -sw, sh);
+            } else {
+                batch.draw(roomTex, 0, 0, sw, sh);
+            }
+        }
+        if (currentRoom.getId() == Room.RoomID.STUDY) {
+            drawStudyPropLayers(batch);
+        }
+
+        if (evidenceGapSession != null && !evidenceGapSession.isBagOpen()) {
+            evidenceGapSession.drawEmbeddedPickups(batch, currentRoom.getId());
         }
 
         // --- DARKNESS MULTIPLY MASK ---
@@ -2636,24 +2943,18 @@ public class GameScreen implements Screen {
 
         batch.setColor(Color.WHITE);
 
-        // --- HOLD TIMER RING ---
-        if (holdTimer > 0f && holdTargetObject != null && !textPanel.isVisible()) {
-            float holdMax = HOLD_TIME_MIN + (gameState.getAwareness()
-                    / (float) GameState.MAX_AWARENESS) * (HOLD_TIME_MAX - HOLD_TIME_MIN);
-            float progress = holdTimer / holdMax;
-            float ringRadius = 24f;
-            int totalDots = 40;
-            int filledDots = (int) (totalDots * progress);
-            for (int i = 0; i < filledDots; i++) {
-                float angleDeg = (i * 360f / totalDots) - 90f;
-                float angleRad = angleDeg * com.badlogic.gdx.math.MathUtils.degreesToRadians;
-                float dotX = cursorGameX + ringRadius
-                        * com.badlogic.gdx.math.MathUtils.cos(angleRad) - 2f;
-                float dotY = cursorGameY + ringRadius
-                        * com.badlogic.gdx.math.MathUtils.sin(angleRad) - 2f;
-                batch.setColor(0.95f, 0.85f, 0.5f, 0.7f + 0.3f * progress);
-                batch.draw(pixelTexture, dotX, dotY, 4f, 4f);
-            }
+
+        // --- METAL DETECTOR FLASH ICON ---
+        if (metalDetectorModeActive && metalDetectorIconTex != null && !metalDetectorRoomReached) {
+            mdIconFlashTimer += delta;
+            // Flash rate syncs with beep interval: faster beep = faster flash
+            float flashSpeed = 4000f / Math.max(100f, mdBeepInterval); // 1 Hz slow → 40 Hz fast
+            float alpha = 0.45f + 0.55f * (float)(Math.sin(mdIconFlashTimer * flashSpeed * Math.PI) * 0.5 + 0.5);
+            float iconSize = 56f;
+            float iconX = DSAGame.SCREEN_WIDTH - iconSize - 12f;
+            float iconY = 12f;
+            batch.setColor(1f, 1f, 1f, alpha);
+            batch.draw(metalDetectorIconTex, iconX, iconY, iconSize, iconSize);
             batch.setColor(Color.WHITE);
         }
 
@@ -2663,22 +2964,23 @@ public class GameScreen implements Screen {
         // Draw action bar
         actionBar.render(batch, font);
 
-        // Draw back button (back.png) in upper-right for rooms with ARROW_BACK hotspot
+        // Draw back button (back.png) upper-left for rooms with ARROW_BACK hotspot
         if (!textPanel.isVisible()) {
             for (Hotspot h : roomManager.getCurrentRoom().getHotspots()) {
                 if (h.getType() == Hotspot.HotspotType.ARROW_BACK) {
-                    final float BW = 70f, BH = 70f;
-                    final float BX = 12f;
-                    final float BY = actionBar.getBarHeight() + 4f;
-                    // Keep hotspot bounds in sync with rendered position
-                    h.setBounds(BX, BY, BW, BH);
+                    float by = actionBar.getBarHeight() + 4f;
                     float brightness = h.isHovered() ? 0.75f : 1f;
                     batch.setColor(brightness, brightness, brightness, 1f);
-                    batch.draw(backButtonTex, BX, BY, BW, BH);
+                    batch.draw(backButtonTex, ARROW_BACK_DRAW_X, by, ARROW_BACK_DRAW_W, ARROW_BACK_DRAW_H);
                     batch.setColor(Color.WHITE);
                     break;
                 }
             }
+        }
+
+        // Evidence backpack: drawn after back.png so it stacks above the arrow (matches EvidenceGapSession EMBEDDED_BAG_*).
+        if (!textPanel.isVisible() && evidenceGapSession != null && !evidenceGapSession.isBagOpen()) {
+            evidenceGapSession.drawEmbeddedBackpackIcon(batch);
         }
 
         // Draw character portraits — VN two-portrait system (left / right)
@@ -2747,6 +3049,10 @@ public class GameScreen implements Screen {
         // Update and draw text panel (on top of everything)
         textPanel.update(delta);
         textPanel.render(batch, font);
+
+        if (evidenceGapSession != null && evidenceGapSession.isBagOpen()) {
+            evidenceGapSession.drawOpenInventoryOverlay(batch, roomManager.getCurrentRoom().getId());
+        }
 
         // Draw mini-game overlay (on top of text panel)
         if (documentGame.isActive()) {
@@ -2826,6 +3132,7 @@ public class GameScreen implements Screen {
             removeHotspot(Room.RoomID.MARGARET_ROOM, "bottom_drawer");
             addMargaretShoesHotspot();
         }
+        syncArrowBackHotspotBounds();
     }
 
     private void showOpeningSequence() {
@@ -2844,6 +3151,7 @@ public class GameScreen implements Screen {
                         "Dust on every surface.{p} Cold air that shouldn't be this cold.{P}\n\n" +
                         "Someone was here before you.", new ArrayList<>());
         panelMode = PanelMode.TEXT;
+        pendingFirstMetalDetector = true;
     }
 
     @Override
@@ -2874,14 +3182,17 @@ public class GameScreen implements Screen {
             kitchenWithoutTapeTex.dispose();
         if (parlorWithoutBriefcaseTex != null)
             parlorWithoutBriefcaseTex.dispose();
-        if (studyWithoutTapeTex != null)
-            studyWithoutTapeTex.dispose();
+        if (studyWithPokerWithTapeTex != null)
+            studyWithPokerWithTapeTex.dispose();
+        if (studyWithPokerWithoutTapeTex != null)
+            studyWithPokerWithoutTapeTex.dispose();
         if (jamesClosedTex != null)
             jamesClosedTex.dispose();
         if (shedTapeBoots != null)    shedTapeBoots.dispose();
         if (shedTapeNoBoots != null)  shedTapeNoBoots.dispose();
         if (shedNoTapeBoots != null)  shedNoTapeBoots.dispose();
         if (shedNoTapeNoBoots != null) shedNoTapeNoBoots.dispose();
+        if (shedCanonicalTex != null) shedCanonicalTex.dispose();
         if (mTapeTopClosedBotClosed != null)
             mTapeTopClosedBotClosed.dispose();
         if (mTapeTopClosedBotOpenShoes != null)
@@ -2915,5 +3226,9 @@ public class GameScreen implements Screen {
         actionBar.dispose();
         documentGame.dispose();
         TextButton.disposeTextures();
+        if (evidenceGapSession != null) {
+            evidenceGapSession.dispose();
+            evidenceGapSession = null;
+        }
     }
 }
