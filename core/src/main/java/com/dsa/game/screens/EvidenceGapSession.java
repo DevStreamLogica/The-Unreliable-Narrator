@@ -164,21 +164,31 @@ public final class EvidenceGapSession {
     };
     private static final String[] COMBINED_KEYS_G3 = { "nar_g3_comb_window", "nar_g3_comb_coord" };
 
-    /** Gap 3 — kitchen: Charles's draft will (counter, note by jar). */
-    private static final int GAP3_KITCHEN_WILL_X = 1128;
-    private static final int GAP3_KITCHEN_WILL_Y = 142;
-    private static final int GAP3_KITCHEN_WILL_W = 124;
-    private static final int GAP3_KITCHEN_WILL_H = 56;
-    /** Gap 3 — kitchen: Harold's evening routine schedule. */
-    private static final int GAP3_KITCHEN_SCHEDULE_X = 96;
-    private static final int GAP3_KITCHEN_SCHEDULE_Y = 180;
-    private static final int GAP3_KITCHEN_SCHEDULE_W = 64;
-    private static final int GAP3_KITCHEN_SCHEDULE_H = 56;
+    /** Gap 3 — kitchen: Charles's draft will (bottom-left, small table area). */
+    private static final int GAP3_KITCHEN_WILL_X = 37;
+    private static final int GAP3_KITCHEN_WILL_Y = 152;
+    private static final int GAP3_KITCHEN_WILL_W = 80;
+    private static final int GAP3_KITCHEN_WILL_H = 36;
+    /** Gap 3 — kitchen: Harold's evening routine schedule (bottom-right counter). */
+    private static final int GAP3_KITCHEN_SCHEDULE_X = 1116;
+    private static final int GAP3_KITCHEN_SCHEDULE_Y = 203;
+    private static final int GAP3_KITCHEN_SCHEDULE_W = 42;
+    private static final int GAP3_KITCHEN_SCHEDULE_H = 22;
+    /** Gap 3 — servants quarters: Charles's work checklist (center, nightstand). */
+    private static final int GAP3_SERVANTS_CHECKLIST_X = 520;
+    private static final int GAP3_SERVANTS_CHECKLIST_Y = 291;
+    private static final int GAP3_SERVANTS_CHECKLIST_W = 36;
+    private static final int GAP3_SERVANTS_CHECKLIST_H = 24;
+    /** Gap 3 — shed: Daniel's note to James (flipped overlay; calculated from 3436x1963 source). */
+    private static final int GAP3_SHED_NOTE_X = 626;
+    private static final int GAP3_SHED_NOTE_Y = 263;
+    private static final int GAP3_SHED_NOTE_W = 100;
+    private static final int GAP3_SHED_NOTE_H = 70;
 
     // ── Gap 4 (chapter 3) — 4 items, 2 pairs ─────────────────────────────────
     private static final String[] NAMES_G4 = {
         "Daniel's Bank Deposit Book", "James's Withdrawal Slip",
-        "Daniel's Fake Work Order", "Broken Wine Rack Bracket"
+        "Daniel's Fake Work Order", "Construction Invoice (1957)"
     };
     private static final Color[] COLORS_G4 = {
         new Color(0.70f,0.76f,0.84f,1f), new Color(0.82f,0.86f,0.90f,1f),
@@ -188,17 +198,17 @@ public final class EvidenceGapSession {
         "Regular deposits. More than his wages should allow. Someone was paying Daniel.",
         "James withdrew a substantial sum the week before. Cash. No record of where it went.",
         "This work order is fabricated. The job never existed. It was an alibi.",
-        "This bracket didn't break on its own. Something was moved down here. Or someone."
+        "This invoice was paid by Harold alone. Thomas's name is conspicuously absent."
     };
     private static final String[] QUOTE_KEYS_G4 = {
         "nar_g4_obj_bankbook_t", "nar_g4_obj_withdrawal_t",
-        "nar_g4_obj_workorder_t", "nar_g4_obj_bracket_t"
+        "nar_g4_obj_workorder_t", "nar_g4_obj_invoice_t"
     };
     private static final int[][] PAIRS_G4 = { {0,1}, {2,3} };
     private static final String[] COMBINED_G4 = { "The Payment", "The Cover Story" };
     private static final String[] COMBINED_QUOTES_G4 = {
         "James paid Daniel. The deposit book and the withdrawal slip are the same transaction, seen from both sides.",
-        "A fake work order to explain his presence. A broken bracket to explain the noise. Daniel had prepared for this."
+        "A fake work order and a construction invoice. Daniel didn't just fabricate an alibi — he built one on paper."
     };
     private static final String[] COMBINED_KEYS_G4 = { "nar_g4_comb_payment", "nar_g4_comb_cover" };
 
@@ -223,20 +233,20 @@ public final class EvidenceGapSession {
 
     // ── Gap 6 (chapter 5) — 2 items, 1 pair ──────────────────────────────────
     private static final String[] NAMES_G6 = {
-        "Partnership Certificate (Harold & Thomas Ashford)", "Construction Invoice (1957)"
+        "Partnership Certificate (Harold & Thomas Ashford)", "Broken Wine Rack Bracket"
     };
     private static final Color[] COLORS_G6 = {
         new Color(0.76f,0.82f,0.88f,1f), new Color(0.66f,0.72f,0.80f,1f),
     };
     private static final String[] QUOTES_G6 = {
         "Harold and Thomas Ashford. Partners. Until they weren't.",
-        "This invoice was paid by Harold alone. Thomas's name is conspicuously absent."
+        "This bracket didn't break on its own. Something was moved down here. Or someone."
     };
-    private static final String[] QUOTE_KEYS_G6 = { "nar_g6_obj_certificate_t", "nar_g6_obj_invoice_t" };
+    private static final String[] QUOTE_KEYS_G6 = { "nar_g6_obj_certificate_t", "nar_g6_obj_bracket_t" };
     private static final int[][] PAIRS_G6 = { {0,1} };
     private static final String[] COMBINED_G6 = { "The Broken Partnership" };
     private static final String[] COMBINED_QUOTES_G6 = {
-        "Harold cut Thomas out. The certificate shows what they built together. The invoice shows what Harold kept for himself."
+        "A partnership certificate and a broken wine rack bracket. What they built together, Harold destroyed. Deliberately."
     };
     private static final String[] COMBINED_KEYS_G6 = { "nar_g6_comb_partner" };
 
@@ -283,6 +293,10 @@ public final class EvidenceGapSession {
     private String[] done;
     private int      previewIdx = -1;
     private boolean  previewDone= false;
+    /** True after all combinations complete; blocks all further player input. */
+    private boolean completionLocked = false;
+    /** Wait for final completion narration to finish before transitioning out. */
+    private boolean waitingForCompletionNarration = false;
 
     // drag
     private boolean isDrag      = false;
@@ -361,6 +375,7 @@ public final class EvidenceGapSession {
     private int    musFade  = 0;
     private static final float MUS_FADE_DUR = 1.5f;
     private static final float MUS_DELAY    = 1.0f;
+    private static final float MUS_NARRATOR_DUCK_VOL = 0.20f;
 
     // ── Factories ─────────────────────────────────────────────────────────────
     /**
@@ -368,18 +383,22 @@ public final class EvidenceGapSession {
      */
     public static EvidenceGapSession forStandalone(DSAGame game, int chapterIndex,
             Room.RoomID resumeWorldRoom, Runnable onComplete) {
-        return new EvidenceGapSession(game, chapterIndex, resumeWorldRoom, onComplete, false);
+        return new EvidenceGapSession(game, chapterIndex, resumeWorldRoom, onComplete, false, true);
     }
 
     /**
      * Evidence phase on {@link GameScreen}: draw pickups for the current manor room only; use manor doors for travel.
      */
     public static EvidenceGapSession forEmbedded(DSAGame game, int chapterIndex, Runnable onComplete) {
-        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true);
+        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, true);
+    }
+
+    public static EvidenceGapSession forEmbeddedSilent(DSAGame game, int chapterIndex, Runnable onComplete) {
+        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, false);
     }
 
     private EvidenceGapSession(DSAGame game, int chapterIndex, Room.RoomID resumeWorldRoom,
-            Runnable onComplete, boolean embedded) {
+            Runnable onComplete, boolean embedded, boolean playIntroNarration) {
         this.game         = game;
         this.onComplete   = onComplete;
         this.chapterIndex = chapterIndex;
@@ -408,7 +427,7 @@ public final class EvidenceGapSession {
 
         buildTextures();
         applyTemplate(templateSizeForChapter(chapterIndex));
-        playNarration("Open the bag to examine the evidence.", "nar_g1_open");
+        if (playIntroNarration) playNarration("Open the bag to examine the evidence.", "nar_g1_open");
     }
 
     public boolean isEmbedded() {
@@ -437,7 +456,10 @@ public final class EvidenceGapSession {
                 if (musDelay <= 0) { musInventory.setVolume(0f); musInventory.play(); musFade = 1; }
             }
             if (musFade == 1) {
-                musVol = Math.min(1f, musVol + delta / MUS_FADE_DUR);
+                // After all combinations, duck inventory music while the final narrator line is speaking.
+                float targetVol = (completionLocked && isNarratorPlaying()) ? MUS_NARRATOR_DUCK_VOL : 1f;
+                if (musVol < targetVol) musVol = Math.min(targetVol, musVol + delta / MUS_FADE_DUR);
+                else musVol = Math.max(targetVol, musVol - delta / MUS_FADE_DUR);
                 musInventory.setVolume(musVol);
             } else if (musFade == 2) {
                 musVol = Math.max(0f, musVol - delta / MUS_FADE_DUR);
@@ -456,6 +478,16 @@ public final class EvidenceGapSession {
                 musFade = 2;
                 scheduleComplete();
             }
+        }
+
+        // Hard-lock controls after all combinations until the final narration line completes.
+        if (waitingForCompletionNarration && !isNarratorPlaying()) {
+            waitingForCompletionNarration = false;
+            if (sndAllDone != null) sndAllDone.play(1.0f);
+            java.util.Arrays.fill(done, null);
+            previewIdx = -1;
+            musFade = 2;
+            scheduleComplete();
         }
 
         tickCompletion(delta);
@@ -499,6 +531,7 @@ public final class EvidenceGapSession {
      * Bag closed: backpack button + gap pickups only. Returns true if the event should not reach manor hotspots / EXAMINE.
      */
     public boolean touchDownEmbeddedExploring(float gameX, float gameY, Room.RoomID worldRoom) {
+        if (completionLocked) return true;
         if (open) return false;
         int mx = (int) gameX, my = (int) gameY;
         if (hit(mx, my, bagScreenX(), bagScreenY(), BTN_W, BTN_H)) {
@@ -516,6 +549,7 @@ public final class EvidenceGapSession {
 
     /** While the bag is open on the manor, captures all touches (modal overlay). */
     public boolean touchDownEmbeddedBagOpen(float gameX, float gameY) {
+        if (completionLocked) return true;
         if (!open) return false;
         int mx = (int) gameX, my = (int) gameY;
         if (hit(mx, my, CLO_X, CLO_Y, CLO_W, CLO_H) || hit(mx, my, bagScreenX(), bagScreenY(), BTN_W, BTN_H)) {
@@ -547,18 +581,21 @@ public final class EvidenceGapSession {
     }
 
     public void touchDraggedEmbeddedBagOpen(float gameX, float gameY) {
+        if (completionLocked) return;
         if (!open || !isDrag) return;
         dragX = gameX;
         dragY = gameY;
     }
 
     public void touchUpEmbeddedBagOpen(float gameX, float gameY) {
+        if (completionLocked) return;
         if (!open || !isDrag) return;
         onDrop((int) gameX, (int) gameY);
     }
 
     /** @return true if ESC closed the bag */
     public boolean handleEscape() {
+        if (completionLocked) return true;
         if (open) {
             closeInventory();
             return true;
@@ -589,6 +626,7 @@ public final class EvidenceGapSession {
     }
 
     private void handleInputStandalone() {
+        if (completionLocked) return;
         Vector3 m = mouse();
         int mx = (int) m.x, my = (int) m.y;
         boolean curPressed   = Gdx.input.isButtonPressed(Input.Buttons.LEFT);
@@ -673,8 +711,8 @@ public final class EvidenceGapSession {
                 return invRoom == 0 || invRoom == 5;
             case 2: // Gap 3: kitchen, shed, servants
                 return invRoom == 2 || invRoom == 4 || invRoom == 5;
-            case 3: // Gap 4: shed, cellar, james
-                return invRoom == 2 || invRoom == 3 || invRoom == 6;
+            case 3: // Gap 4: shed, james
+                return invRoom == 2 || invRoom == 6;
             case 4: // Gap 5: margaret, shed
                 return invRoom == 7 || invRoom == 2;
             case 5: // Gap 6: parlor, cellar
@@ -695,8 +733,8 @@ public final class EvidenceGapSession {
     }
 
     /**
-     * Gap 3: kitchen slots 0–1 are available in any order. Shed note (2) and servants checklist (3) appear only
-     * after both kitchen pieces are taken — note stays in the shed layer, never on other rooms.
+     * Gap 3: kitchen slots 0–1 are available in any order.
+     * Shed note (2) appears after both kitchen pieces are taken; servants checklist (3) is always available.
      */
     private boolean showGap3Pickup(int slot) {
         boolean kitchenDone = gap3SlotCollected(0) && gap3SlotCollected(1);
@@ -705,8 +743,9 @@ public final class EvidenceGapSession {
             case 1:
                 return !gap3SlotCollected(slot);
             case 2:
+                return !gap3SlotCollected(slot);
             case 3:
-                return kitchenDone && !gap3SlotCollected(slot);
+                return !gap3SlotCollected(slot);
             default:
                 return false;
         }
@@ -796,7 +835,7 @@ public final class EvidenceGapSession {
         wlBankbook = loadWorldLayer("shed_bankbook.png");
         wlWorkorder = loadWorldLayer("shed_workorder.png");
         wlRetreatlog = loadWorldLayer("shed_retreatlog.png");
-        wlJamesDiscarded = loadWorldLayer("james_crumpled_note.png");
+        wlJamesDiscarded = loadWorldLayer("daniel_note_to_james.png");
         wlBracket = loadWorldLayer("cellar_bracket.png");
         wlInvoice = loadWorldLayer("cellar_invoice.png");
         wlWillAmend = loadWorldLayer("kitchen_willamend.png");
@@ -960,15 +999,15 @@ public final class EvidenceGapSession {
                 switch (slot) { case 0: return txObjWillAmend; case 1: return txObjKitchenSchedule;
                     case 2: return txObjJamesDiscarded; case 3: return txObjChecklist; }
                 break;
-            case 3: // bankbook, withdrawal, workorder, bracket
+            case 3: // bankbook, withdrawal, workorder, invoice
                 switch (slot) { case 0: return txObjBankbook; case 1: return txObjWithdrawal;
-                    case 2: return txObjWorkorder; case 3: return txObjBracket; }
+                    case 2: return txObjWorkorder; case 3: return txObjInvoice; }
                 break;
             case 4: // diary, retreatlog
                 switch (slot) { case 0: return txObjDiary; case 1: return txObjRetreatlog; }
                 break;
-            default: // certificate, invoice
-                switch (slot) { case 0: return txObjCertificate; case 1: return txObjInvoice; }
+            default: // certificate, bracket
+                switch (slot) { case 0: return txObjCertificate; case 1: return txObjBracket; }
                 break;
         }
         return doc(SLOT-22, SLOT_H-38, colors[slot % colors.length]);
@@ -1111,7 +1150,7 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 0 && !objSchedulePicked && hit(mx, my, 988, 387, 96, 130)) {
                     objSchedulePicked = true; playSound(sndItem, 1f); addToSlot(5); return true;
                 }
-                if (chapterIndex == 2 && showGap3Pickup(2) && hit(mx, my, 672, 294, 15, 4)) {
+                if (chapterIndex == 2 && showGap3Pickup(2) && hit(mx, my, GAP3_SHED_NOTE_X, GAP3_SHED_NOTE_Y, GAP3_SHED_NOTE_W, GAP3_SHED_NOTE_H)) {
                     objJamesDiscardedPicked = true; playSound(sndItem, 1f); addToSlot(2); return true;
                 }
                 if (chapterIndex == 3 && !objBankbookPicked && hit(mx, my, 529, 257, 33, 22)) {
@@ -1120,23 +1159,30 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 3 && !objWorkorderPicked && hit(mx, my, 564, 265, 8, 4)) {
                     objWorkorderPicked = true; playSound(sndItem, 1f); addToSlot(2); return true;
                 }
+                if (chapterIndex == 3 && !objInvoicePicked && hit(mx, my, 580, 245, 60, 30)) {
+                    objInvoicePicked = true; playSound(sndItem, 1f); addToSlot(3); return true;
+                }
                 if (chapterIndex == 4 && !objRetreatlogPicked && hit(mx, my, 699, 295, 51, 28)) {
                     objRetreatlogPicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
                 }
                 break;
             case 3:
-                if (chapterIndex == 3 && !objBracketPicked && hit(mx, my, 384, 125, 79, 37)) {
-                    objBracketPicked = true; playSound(sndItem, 1f); addToSlot(3); return true;
+                if (chapterIndex == 5 && !objBracketPicked && hit(mx, my, 384, 125, 79, 37)) {
+                    objBracketPicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
                 }
                 if (chapterIndex == 5 && !objInvoicePicked && hit(mx, my, 1022, 140, 80, 20)) {
                     objInvoicePicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
                 }
                 break;
             case 4:
-                if (chapterIndex == 2 && showGap3Pickup(0) && hit(mx, my, GAP3_KITCHEN_WILL_X, GAP3_KITCHEN_WILL_Y, GAP3_KITCHEN_WILL_W, GAP3_KITCHEN_WILL_H)) {
+                if (chapterIndex == 2 && showGap3Pickup(0)
+                        && hit(mx, my, GAP3_KITCHEN_WILL_X, GAP3_KITCHEN_WILL_Y,
+                        GAP3_KITCHEN_WILL_W, GAP3_KITCHEN_WILL_H)) {
                     objWillAmendPicked = true; playSound(sndItem, 1f); addToSlot(0); return true;
                 }
-                if (chapterIndex == 2 && showGap3Pickup(1) && hit(mx, my, GAP3_KITCHEN_SCHEDULE_X, GAP3_KITCHEN_SCHEDULE_Y, GAP3_KITCHEN_SCHEDULE_W, GAP3_KITCHEN_SCHEDULE_H)) {
+                if (chapterIndex == 2 && showGap3Pickup(1)
+                        && hit(mx, my, GAP3_KITCHEN_SCHEDULE_X, GAP3_KITCHEN_SCHEDULE_Y,
+                        GAP3_KITCHEN_SCHEDULE_W, GAP3_KITCHEN_SCHEDULE_H)) {
                     objKitchenSchedulePicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
                 }
                 break;
@@ -1144,7 +1190,8 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 1 && !objServingPicked && hit(mx, my, 590, 290, 35, 30)) {
                     objServingPicked = true; playSound(sndItem, 1f); addToSlot(3); return true;
                 }
-                if (chapterIndex == 2 && showGap3Pickup(3) && hit(mx, my, 656, 295, 25, 23)) {
+                if (chapterIndex == 2 && showGap3Pickup(3)
+                        && hit(mx, my, GAP3_SERVANTS_CHECKLIST_X, GAP3_SERVANTS_CHECKLIST_Y, GAP3_SERVANTS_CHECKLIST_W, GAP3_SERVANTS_CHECKLIST_H)) {
                     objChecklistPicked = true; playSound(sndItem, 1f); addToSlot(3); return true;
                 }
                 break;
@@ -1186,10 +1233,11 @@ public final class EvidenceGapSession {
                         boolean allDone = true;
                         for (String d : done) if (d == null) { allDone = false; break; }
                         if (allDone) {
+                            completionLocked = true;
+                            waitingForCompletionNarration = true;
                             playNarration(
                                 "I remember now. There was a recording. Use the detector.",
                                 "nar_g1_complete");
-                            allDoneTimer = 1.0f;
                         }
                         break;
                     }
@@ -1213,6 +1261,7 @@ public final class EvidenceGapSession {
         open = false; isDrag = false; dragSlot = -1;
         if (cmbSlot != -1) { grid[cmbSlot] = names[cmbSlot]; cmbSlot = -1; }
         playSound(sndOpen, 1f);
+        musDelay = -1f;
         musFade = 2;
     }
 
@@ -1280,13 +1329,14 @@ public final class EvidenceGapSession {
                 // Draw schedule layer first; James's note world layer is mostly transparent so the letter reads on top.
                 if (chapterIndex == 0 && !objSchedulePicked)   drawRoomPickup(batch, invRoom, wlSchedule,   txObjSchedule,   988, 387, 96, 130);
                 if (chapterIndex == 0 && !objJamesNotePicked)  drawRoomPickup(batch, invRoom, wlJamesNote,    txObjJamesNote,    GAP1_JAMES_NOTE_SHED_X, GAP1_JAMES_NOTE_SHED_Y, GAP1_JAMES_NOTE_SHED_W, GAP1_JAMES_NOTE_SHED_H);
-                if (chapterIndex == 2 && showGap3Pickup(2)) drawRoomPickup(batch, invRoom, wlJamesDiscarded, txObjJamesDiscarded, 672, 294, 15, 4);
+                if (chapterIndex == 2 && showGap3Pickup(2)) drawRoomPickup(batch, invRoom, wlJamesDiscarded, txObjJamesDiscarded, GAP3_SHED_NOTE_X, GAP3_SHED_NOTE_Y, GAP3_SHED_NOTE_W, GAP3_SHED_NOTE_H);
                 if (chapterIndex == 3 && !objBankbookPicked)   drawRoomPickup(batch, invRoom, wlBankbook,    txObjBankbook,    529, 257, 33, 22);
                 if (chapterIndex == 3 && !objWorkorderPicked)  drawRoomPickup(batch, invRoom, wlWorkorder,   txObjWorkorder,   564, 265,  8,  4);
+                if (chapterIndex == 3 && !objInvoicePicked)    drawRoomPickup(batch, invRoom, null,          txObjInvoice,     580, 245, 60, 30);
                 if (chapterIndex == 4 && !objRetreatlogPicked) drawRoomPickup(batch, invRoom, wlRetreatlog,  txObjRetreatlog,  699, 295, 51, 28);
                 break;
             case 3:
-                if (chapterIndex == 3 && !objBracketPicked) drawRoomPickup(batch, invRoom, wlBracket, txObjBracket, 384, 125, 79, 37);
+                if (chapterIndex == 5 && !objBracketPicked) drawRoomPickup(batch, invRoom, wlBracket, txObjBracket, 384, 125, 79, 37);
                 if (chapterIndex == 5 && !objInvoicePicked) drawRoomPickup(batch, invRoom, wlInvoice, txObjInvoice, 1022, 140, 80, 20);
                 break;
             case 4:
@@ -1295,7 +1345,8 @@ public final class EvidenceGapSession {
                 break;
             case 5:
                 if (chapterIndex == 1 && !objServingPicked)   drawRoomPickup(batch, invRoom, wlServing,   txObjServing,   590, 290, 35, 30);
-                if (chapterIndex == 2 && showGap3Pickup(3)) drawRoomPickup(batch, invRoom, wlChecklist, txObjChecklist, 656, 295, 25, 23);
+                if (chapterIndex == 2 && showGap3Pickup(3)) drawRoomPickup(batch, invRoom, wlChecklist, txObjChecklist,
+                        GAP3_SERVANTS_CHECKLIST_X, GAP3_SERVANTS_CHECKLIST_Y, GAP3_SERVANTS_CHECKLIST_W, GAP3_SERVANTS_CHECKLIST_H);
                 break;
             case 6:
                 if (chapterIndex == 3 && !objWithdrawalPicked) drawRoomPickup(batch, invRoom, wlWithdrawal,   txObjWithdrawal,   244, 158, 68, 21);
@@ -1312,13 +1363,12 @@ public final class EvidenceGapSession {
             int hitX, int hitY, int hitW, int hitH) {
         // Only full-bleed room overlays should replace the view; small prop PNGs in inventory/world/ would
         // stretch to the full screen and read as missing/wrong — fall back to the inventory sprite on the hit rect.
-        // Gap 3 (chapter 2): never use full-room world layers — those overlays often don't match embedded manor art
-        // and read as empty/invisible; always draw the inventory sprites on the hit rects.
-        if (chapterIndex != 2 && worldLayer != null && isFullRoomWorldOverlay(worldLayer)) {
+        if (worldLayer != null && isFullRoomWorldOverlay(worldLayer)) {
             drawPickupFullRoom(batch, invRoom, worldLayer);
             return;
         }
-        if (inventorySprite != null) drawPickupLayer(batch, inventorySprite, hitX, hitY, hitW, hitH);
+        if (inventorySprite != null)
+            drawPickupLayer(batch, inventorySprite, hitX, hitY, hitW, hitH, false);
     }
 
     private static boolean isFullRoomWorldOverlay(Texture t) {
@@ -1355,13 +1405,27 @@ public final class EvidenceGapSession {
         game.batch.draw(txBack, INV_BACK_X, INV_BACK_Y, INV_BACK_W, INV_BACK_H);
     }
 
-    private void drawPickupLayer(SpriteBatch batch, Texture tex, int hitX, int hitY, int hitW, int hitH) {
+    private void drawPickupLayer(SpriteBatch batch, Texture tex, int hitX, int hitY, int hitW, int hitH,
+            boolean flipX) {
         if (tex == null) return;
         float cx = hitX + hitW / 2f;
         float cy = hitY + hitH / 2f;
         float boxW = Math.min(124f, Math.max(hitW + 26f, hitW * 2.35f + 22f));
         float boxH = Math.min(112f, Math.max(hitH + 20f, hitH * 2.55f + 18f));
-        drawTextureFit(batch, tex, cx - boxW / 2f, cy - boxH / 2f, boxW, boxH);
+        float drawX = cx - boxW / 2f;
+        float drawY = cy - boxH / 2f;
+        if (!flipX) {
+            drawTextureFit(batch, tex, drawX, drawY, boxW, boxH);
+            return;
+        }
+        float tw = tex.getWidth(), th = tex.getHeight();
+        if (tw <= 0 || th <= 0) {
+            batch.draw(tex, drawX + boxW, drawY, -boxW, boxH);
+            return;
+        }
+        float scale = Math.min(boxW / tw, boxH / th);
+        float dw = tw * scale, dh = th * scale;
+        batch.draw(tex, drawX + (boxW - dw) * 0.5f + dw, drawY + (boxH - dh) * 0.5f, -dw, dh);
     }
 
     private void drawInventory() {
@@ -1466,6 +1530,21 @@ public final class EvidenceGapSession {
                 return;
             } catch (Exception ignored) {}
         }
+    }
+
+    private boolean isNarratorPlaying() {
+        return musNarrator != null && musNarrator.isPlaying();
+    }
+
+    /** Gap 3 servants pickup also needs mirrored X in embedded mode. */
+    private int gap3ServantsX(int baseX, int width) {
+        if (!embedded) return baseX;
+        return SW - (baseX + width);
+    }
+
+    /** Exposed so GameScreen can consume all input during the completion narration lock. */
+    public boolean isCompletionLocked() {
+        return completionLocked;
     }
 
     private void playSound(Sound s, float vol) {

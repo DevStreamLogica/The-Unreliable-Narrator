@@ -47,6 +47,7 @@ public class GameScreen implements Screen {
     private Texture studyWithPokerWithoutTapeTex;
     private Texture jamesClosedTex;
     private Texture guestRoomMargaretCloseTex;
+    private Texture guestRoomsUnlockedTex;
     private Texture shedTapeBoots;
     private Texture shedTapeNoBoots;
     private Texture shedNoTapeBoots;
@@ -71,11 +72,6 @@ public class GameScreen implements Screen {
     private String currentTooltip = "";
     private GlyphLayout layout;
 
-    // Fade timers
-    private float titleFadeTimer = 0;
-    private float descFadeTimer = 0;
-    private static final float TITLE_FADE_DURATION = 3f;
-    private static final float DESC_FADE_DURATION = 5f;
     private Room.RoomID lastRenderedRoom = null;
 
     // Game state & systems
@@ -94,12 +90,6 @@ public class GameScreen implements Screen {
     private AwarenessMeter awarenessMeter;
     private ActionBar actionBar;
     private DocumentReconstructionGame documentGame;
-
-    // Pop-up notification system (upper-right, 5 seconds)
-    private final java.util.Queue<String> notifQueue = new java.util.LinkedList<>();
-    private String currentNotif = null;
-    private float notifTimer = 0f;
-    private static final float NOTIF_DURATION = 5f;
 
     // Room transition fade
     private float transitionAlpha = 0f;
@@ -176,7 +166,6 @@ public class GameScreen implements Screen {
     /** Flash/pulse timer for the metal-detector icon. */
     private float mdIconFlashTimer = 0f;
     /** Set true after the opening sequence to trigger the first metal-detector on close. */
-    private boolean pendingFirstMetalDetector = false;
     /** Set of tapes for which the maze has already been played. */
     private final java.util.Set<Tape> mazePlayedTapes = new java.util.HashSet<>();
 
@@ -187,6 +176,8 @@ public class GameScreen implements Screen {
     // --- Darkness / lighting mechanic ---
     private Texture spotlightTexture;
     private com.badlogic.gdx.graphics.glutils.FrameBuffer lightsBuffer;
+    /** Debug toggle: when true, skip darkness/limited-visibility mask. */
+    private boolean debugDisableLimitedVisibility = false;
     private float cursorGameX = DSAGame.SCREEN_WIDTH / 2f;
     private float cursorGameY = DSAGame.SCREEN_HEIGHT / 2f;
 
@@ -317,6 +308,7 @@ public class GameScreen implements Screen {
             jamesClosedTex = new Texture(Gdx.files.internal("rooms/james closed.jpeg"));
         }
         guestRoomMargaretCloseTex = loadTex("rooms/guest_room_margaret_close.jpg");
+        guestRoomsUnlockedTex = loadTex("rooms/guest_rooms.png");
         shedCanonicalTex = loadTexLinear("inventory/rooms/shed.png");
         if (shedCanonicalTex == null) shedCanonicalTex = loadTexLinear("shed.png");
         shedTapeBoots   = loadTex("rooms/Shed_with_tape_with_boots.jpg");
@@ -473,6 +465,10 @@ public class GameScreen implements Screen {
                 if (gameState.isGameOver() || gameState.isGameWon())
                     return true;
 
+                if (evidenceGapSession != null && evidenceGapSession.isCompletionLocked()) {
+                    return true;
+                }
+
                 // Document reconstruction mini-game gets top priority
                 if (documentGame.isActive()) {
                     if (documentGame.isCompleted()) {
@@ -614,6 +610,10 @@ public class GameScreen implements Screen {
                     return true;
                 }
 
+                if (evidenceGapSession != null && evidenceGapSession.isCompletionLocked()) {
+                    return true;
+                }
+
                 // Block keyboard when mini-game is active (except ESC to cancel)
                 if (documentGame.isActive()) {
                     if (keycode == Input.Keys.ESCAPE && !documentGame.isCompleted()) {
@@ -641,6 +641,12 @@ public class GameScreen implements Screen {
                 // Don't allow navigation while panel is open
                 if (textPanel.isVisible())
                     return true;
+
+                // DEBUG: quick-jump to post-Tape-3-maze checkpoint.
+                if (keycode == Input.Keys.CONTROL_LEFT || keycode == Input.Keys.CONTROL_RIGHT) {
+                    debugJumpAfterTape2Maze();
+                    return true;
+                }
 
                 switch (keycode) {
                     case Input.Keys.W:
@@ -727,12 +733,61 @@ public class GameScreen implements Screen {
     }
 
     private boolean isCellarUnlocked() {
-        return gameState.getWatchedTapes().size() >= 4
-            && gameState.getCollectedEvidence().size() >= 5;
+        // Cellar opens in Gap 6 and onward.
+        return currentChapter >= 5;
     }
 
     private boolean isMargaretRoomUnlocked() {
-        return gameState.hasAnomaly(com.dsa.game.state.EntityAnomaly.BREATHING_WALL);
+        // Margaret's room opens in Gap 5 and onward.
+        return currentChapter >= 4;
+    }
+
+    /**
+     * Debug shortcut: jump to the state immediately after Tape 3 maze completion.
+     * This starts Gap 3 inventory phase directly.
+     */
+    private void debugJumpAfterTape2Maze() {
+        stopMetalDetectorBeepThread();
+        metalDetectorModeActive = false;
+        metalDetectorRoomReached = false;
+        metalDetectorTargetRoom = null;
+        // Skip the one-time detector demo when using this debug checkpoint jump.
+        MetalDetectorScanScreen.metalDetectorDemoAlreadySeen = true;
+        // Disable darkness mask for faster visual debugging after Ctrl jump.
+        debugDisableLimitedVisibility = true;
+
+        pendingInventoryStart = false;
+        currentChapter = 3; // Gap 4
+        minigameReturnCooldown = 0f;
+
+        pendingMiniGame = null;
+        pendingClimax = false;
+        textPanel.hide();
+        panelMode = PanelMode.NONE;
+
+        seedDebugProgressThroughTape4();
+        startInventoryPhase();
+    }
+
+    /**
+     * Seed game progression as if the player genuinely cleared up through Tape 4.
+     * Keeps debug jumps consistent with lock/unlock logic and room gates.
+     */
+    private void seedDebugProgressThroughTape4() {
+        Tape[] cleared = {
+                Tape.TAPE_ARGUMENT,
+                Tape.TAPE_JAMES_INTERVIEW,
+                Tape.TAPE_DANIEL_INTERVIEW,
+                Tape.TAPE_MARGARET_INTERVIEW
+        };
+        StringBuilder sink = new StringBuilder();
+        for (Tape t : cleared) {
+            gameState.forceCollectTape(t);
+            gameState.forceWatchTape(t);
+            mazePlayedTapes.add(t);
+            // Apply normal tape-chain unlock side effects (codes + unlocks).
+            revealCodeFromTape(t, sink);
+        }
     }
 
     private void handleNavigation(Room.RoomID target) {
@@ -790,8 +845,6 @@ public class GameScreen implements Screen {
         final Room.RoomID navTarget = target;
         navigateWithFade(() -> {
             roomManager.navigateTo(navTarget);
-            titleFadeTimer = 0;
-            descFadeTimer = 0;
             gameState.incrementVisit(navTarget);
             gameState.incrementCommandCount();
             gameState.addEvent("Moved to " + roomManager.getCurrentRoom().getName());
@@ -1033,6 +1086,7 @@ public class GameScreen implements Screen {
      */
     private void startInventoryPhase() {
         returningFromMinigame = true;
+        pendingInventoryStart = false;
         final GameScreen self = this;
         final int chapter = currentChapter;
         if (evidenceGapSession != null) {
@@ -1132,8 +1186,9 @@ public class GameScreen implements Screen {
                             int samples = (int)(44100 * 60 / 1000.0);
                             byte[] buf = new byte[samples];
                             for (int i = 0; i < samples; i++) {
+                                double decay = 1.0 - (double) i / samples;
                                 double angle = 2.0 * Math.PI * i * 300 / 44100;
-                                buf[i] = (byte)(Math.sin(angle) * 80);
+                                buf[i] = (byte)(Math.sin(angle) * 100 * decay);
                             }
                             line.write(buf, 0, buf.length); line.drain(); line.close();
                         } catch (Exception ignored) {}
@@ -1205,13 +1260,18 @@ public class GameScreen implements Screen {
                         self.gameState.addEvent("Watched tape: " + tape.getTitle());
                     }
                     // Keep currentChapter until evidence inventory finishes — it selects which gap's items to show.
-                    // Launch maze
+                    // Launch maze (preceded by demo on first tape)
                     self.mazePlayedTapes.add(tape);
-                    game.setScreen(new MazeMinigame(game, self.gameState, tape, () -> {
+                    Runnable launchMaze = () -> game.setScreen(new MazeMinigame(game, self.gameState, tape, () -> {
                         self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
-                        self.pendingInventoryStart = true;
+                        self.startInventoryPhase(); // pre-build textures before screen switch
                         game.setScreen(self);
                     }));
+                    if (!MetalDetectorScanScreen.metalDetectorDemoAlreadySeen) {
+                        game.setScreen(MetalDetectorScanScreen.forDemo(game, launchMaze));
+                    } else {
+                        launchMaze.run();
+                    }
                 }));
             },
             // onReturn (miss — return to navigating)
@@ -1438,7 +1498,7 @@ public class GameScreen implements Screen {
                         final GameScreen self = this;
                         game.setScreen(new MazeMinigame(game, gameState, lastWatched, () -> {
                             self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
-                            self.pendingInventoryStart = true;
+                            self.startInventoryPhase(); // pre-build textures before screen switch
                             game.setScreen(self);
                         }));
                         return;
@@ -1454,14 +1514,6 @@ public class GameScreen implements Screen {
                     interviewSystem.endInterview();
                 }
                 panelMode = PanelMode.NONE;
-                // First-time metal detector: kick in right after the opening sequence
-                if (pendingFirstMetalDetector) {
-                    pendingFirstMetalDetector = false;
-                    metalDetectorTargetRoom = Room.RoomID.STUDY;
-                    metalDetectorModeActive = true;
-                    metalDetectorRoomReached = false;
-                    startMetalDetectorBeepThread();
-                }
             }
             return;
         }
@@ -1653,7 +1705,7 @@ public class GameScreen implements Screen {
     }
 
     private void showNotification(String msg) {
-        notifQueue.add(msg);
+        // notifications disabled
     }
 
     private void removeHotspot(Room.RoomID roomId, String objectName) {
@@ -2713,37 +2765,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // --- AMBIENT NARRATOR CHATTER ---
-        if (!textPanel.isVisible() && !gameState.isGameOver() && !gameState.isGameWon()
-                && !documentGame.isActive()) {
-            ambientNarratorTimer -= delta;
-            if (ambientNarratorTimer <= 0f) {
-                // Alternate between environmental cues and warnings; warnings skew later game
-                String line;
-                int awareness = gameState.getAwareness();
-                if (awareness >= 40 && MathUtils.random() < 0.4f) {
-                    line = narratorSystem.getWarning();
-                } else {
-                    line = narratorSystem.getEnvironmentalCue();
-                }
-                showNotification(line);
-                // Next line fires in 20–40 seconds (shrinks at high awareness)
-                float base = 20f - (awareness / (float) GameState.MAX_AWARENESS) * 8f;
-                ambientNarratorTimer = base + MathUtils.random(0f, 20f);
-            }
-        }
-
-        // Advance notification timer; pop next queued notification when current expires
-        if (currentNotif != null) {
-            notifTimer -= delta;
-            if (notifTimer <= 0f) {
-                currentNotif = notifQueue.isEmpty() ? null : notifQueue.poll();
-                if (currentNotif != null) notifTimer = NOTIF_DURATION;
-            }
-        } else if (!notifQueue.isEmpty()) {
-            currentNotif = notifQueue.poll();
-            notifTimer = NOTIF_DURATION;
-        }
 
         // Advance room transition fade
         if (transitionFadingOut) {
@@ -2772,16 +2793,10 @@ public class GameScreen implements Screen {
         Room currentRoom = roomManager.getCurrentRoom();
         syncArrowBackHotspotBounds();
 
-        // Reset fade timers on room change
+        // Reset on room change
         if (lastRenderedRoom != currentRoom.getId()) {
             lastRenderedRoom = currentRoom.getId();
-            titleFadeTimer = 0;
-            descFadeTimer = 0;
         }
-
-        // Advance fade timers
-        titleFadeTimer += delta;
-        descFadeTimer += delta;
 
         batch.begin();
 
@@ -2805,6 +2820,10 @@ public class GameScreen implements Screen {
                 && guestRoomMargaretCloseTex != null
                 && !isMargaretRoomUnlocked()) {
             roomTex = guestRoomMargaretCloseTex;
+        } else if (currentRoom.getId() == Room.RoomID.GUEST_ROOMS
+                && guestRoomsUnlockedTex != null
+                && isMargaretRoomUnlocked()) {
+            roomTex = guestRoomsUnlockedTex;
         }
         if (currentRoom.getId() == Room.RoomID.GROUNDSKEEPER_SHED && shedCanonicalTex != null) {
             // Always use inventory shed art; flip horizontally at draw time.
@@ -2855,7 +2874,8 @@ public class GameScreen implements Screen {
         // --- DARKNESS MULTIPLY MASK ---
         // Render a warm-circle-on-black to the lights FBO, then multiply it over the room.
         // room * white(center) = room visible; room * black(edges) = darkness.
-        if (!gameState.isGameOver() && !gameState.isGameWon() && spotlightTexture != null) {
+        if (!debugDisableLimitedVisibility
+                && !gameState.isGameOver() && !gameState.isGameWon() && spotlightTexture != null) {
             int aw = gameState.getAwareness();
             float maxAw = (float) GameState.MAX_AWARENESS;
             float lightRadius = 220f - (aw / maxAw) * 150f; // 220px → 70px
@@ -2890,56 +2910,7 @@ public class GameScreen implements Screen {
             batch.setColor(Color.WHITE);
         }
 
-        // Draw room name with text shadow (top-left, fades out)
-        float titleAlpha = MathUtils.clamp(1f - (titleFadeTimer - TITLE_FADE_DURATION), 0f, 1f);
-        if (titleAlpha > 0) {
-            layout.setText(titleFont, currentRoom.getName());
-            float titleX = 20;
-            float titleY = DSAGame.SCREEN_HEIGHT - 20;
-
-            // Shadow
-            titleFont.setColor(0, 0, 0, titleAlpha * 0.7f);
-            titleFont.draw(batch, currentRoom.getName(), titleX + 2, titleY - 2);
-            // Text
-            titleFont.setColor(0.95f, 0.95f, 0.9f, titleAlpha);
-            titleFont.draw(batch, currentRoom.getName(), titleX, titleY);
-            titleFont.setColor(Color.WHITE);
-        }
-
         // Tooltips removed
-
-        // Draw room description box — top-left, distinct slate style
-        float descAlpha = MathUtils.clamp(1f - (descFadeTimer - DESC_FADE_DURATION), 0f, 1f);
-        if (descAlpha > 0) {
-            String description = RoomDescriptions.getDescription(
-                    currentRoom.getId(),
-                    gameState.getVisitCount(currentRoom.getId()),
-                    gameState.getAwareness());
-            layout.setText(font, description);
-            float pad = 10f;
-            float boxW = layout.width + pad * 2;
-            float boxH = layout.height + pad * 2;
-            float boxX = 16f;
-            float boxY = DSAGame.SCREEN_HEIGHT - boxH - 16f;
-
-            // Background — deep slate blue, distinct from tooltip teal-black
-            batch.setColor(0.08f, 0.10f, 0.22f, 0.88f * descAlpha);
-            batch.draw(pixelTexture, boxX, boxY, boxW, boxH);
-            // Accent border — muted dusty rose/mauve left edge + full border
-            batch.setColor(0.65f, 0.45f, 0.55f, 0.9f * descAlpha);
-            batch.draw(pixelTexture, boxX, boxY, boxW, 1);
-            batch.draw(pixelTexture, boxX, boxY + boxH - 1, boxW, 1);
-            batch.draw(pixelTexture, boxX, boxY, 1, boxH);
-            batch.draw(pixelTexture, boxX + boxW - 1, boxY, 1, boxH);
-            // Thicker left accent bar
-            batch.setColor(0.75f, 0.50f, 0.62f, 0.95f * descAlpha);
-            batch.draw(pixelTexture, boxX, boxY, 3, boxH);
-            // Text
-            batch.setColor(Color.WHITE);
-            font.setColor(0.92f, 0.88f, 0.95f, descAlpha);
-            font.draw(batch, description, boxX + pad, boxY + boxH - pad);
-            font.setColor(Color.WHITE);
-        }
 
         batch.setColor(Color.WHITE);
 
@@ -3059,29 +3030,6 @@ public class GameScreen implements Screen {
             documentGame.render(batch, font);
         }
 
-        // Draw upper-right pop-up notification
-        if (currentNotif != null && notifTimer > 0f) {
-            float fadeAlpha = Math.min(1f, notifTimer / 0.4f); // fade out in last 0.4s
-            layout.setText(font, currentNotif);
-            float notifPad = 12f;
-            float notifW = layout.width + notifPad * 2;
-            float notifH = layout.height + notifPad * 2;
-            float notifX = DSAGame.SCREEN_WIDTH - notifW - 16;
-            float notifY = DSAGame.SCREEN_HEIGHT - notifH - 16;
-
-            batch.setColor(0.05f, 0.12f, 0.08f, 0.90f * fadeAlpha);
-            batch.draw(pixelTexture, notifX, notifY, notifW, notifH);
-            batch.setColor(0.6f, 0.55f, 0.35f, 0.9f * fadeAlpha);
-            batch.draw(pixelTexture, notifX, notifY, notifW, 1);
-            batch.draw(pixelTexture, notifX, notifY + notifH - 1, notifW, 1);
-            batch.draw(pixelTexture, notifX, notifY, 1, notifH);
-            batch.draw(pixelTexture, notifX + notifW - 1, notifY, 1, notifH);
-            batch.setColor(Color.WHITE);
-            font.setColor(0.95f, 0.93f, 0.85f, fadeAlpha);
-            font.draw(batch, currentNotif, notifX + notifPad, notifY + notifH - notifPad);
-            font.setColor(Color.WHITE);
-            batch.setColor(Color.WHITE);
-        }
 
         // Room transition fade overlay
         if (transitionAlpha > 0f) {
@@ -3102,7 +3050,12 @@ public class GameScreen implements Screen {
     public void show() {
         setupInput();
         if (!isLoadedGame && !returningFromMinigame) {
-            showOpeningSequence();
+            MetalDetectorScanScreen.metalDetectorDemoAlreadySeen = false;
+            metalDetectorTargetRoom = Room.RoomID.STUDY;
+            metalDetectorModeActive = true;
+            metalDetectorRoomReached = false;
+            startMetalDetectorBeepThread();
+            evidenceGapSession = EvidenceGapSession.forEmbeddedSilent(game, currentChapter, null);
         }
         returningFromMinigame = false;
         // Remove already-collected item hotspots (handles loaded saves)
@@ -3133,25 +3086,6 @@ public class GameScreen implements Screen {
             addMargaretShoesHotspot();
         }
         syncArrowBackHotspotBounds();
-    }
-
-    private void showOpeningSequence() {
-        gameState.setNarratorHeaderShown(true); // prevent it firing again on first examine
-
-        textPanel.showDialogue("The Narrator",
-                "[A voice fills your mind{p} -- not from any direction,{p} but from everywhere at once.{p} Like a memory that isn't yours.]{P}\n\n"
-                        +
-                        "\"Ah.{p} You found it.{p} Good.{P} I've been waiting for someone " +
-                        "who would listen.{p} My name doesn't matter{p} -- what matters is what happened " +
-                        "in this house.{P}\n\n" +
-                        "Move your light carefully.{p} Linger on what draws you.{p} " +
-                        "The house will show you things{p} if you give it time.\"{P}\n\n" +
-                        "---\n\n" +
-                        "Vance Manor.{p} Abandoned for decades.{p} " +
-                        "Dust on every surface.{p} Cold air that shouldn't be this cold.{P}\n\n" +
-                        "Someone was here before you.", new ArrayList<>());
-        panelMode = PanelMode.TEXT;
-        pendingFirstMetalDetector = true;
     }
 
     @Override
@@ -3188,6 +3122,8 @@ public class GameScreen implements Screen {
             studyWithPokerWithoutTapeTex.dispose();
         if (jamesClosedTex != null)
             jamesClosedTex.dispose();
+        if (guestRoomsUnlockedTex != null)
+            guestRoomsUnlockedTex.dispose();
         if (shedTapeBoots != null)    shedTapeBoots.dispose();
         if (shedTapeNoBoots != null)  shedTapeNoBoots.dispose();
         if (shedNoTapeBoots != null)  shedNoTapeBoots.dispose();

@@ -96,8 +96,7 @@ public class MetalDetectorScanScreen implements Screen {
     // ── Demo tape position (for animated cursor) ──────────────────────────────
     private static final Vector2 DEMO_TAPE = new Vector2(820f, 360f);
 
-    /** After the tutorial demo runs once, later visits skip DEMO (still play intro, then go straight to detecting). */
-    private static boolean metalDetectorDemoAlreadySeen;
+    public static boolean metalDetectorDemoAlreadySeen;
 
     // ── Fields ────────────────────────────────────────────────────────────────
     private final DSAGame    game;
@@ -116,14 +115,21 @@ public class MetalDetectorScanScreen implements Screen {
     private float bgMusicFadeTimer = 0f;
     private static final float BGM_FADE_DELAY    = 1f;
     private static final float BGM_FADE_DURATION = 2f;
+    private static final float BGM_FULL_VOL      = 0.5f;
+    private static final float BGM_DUCK_VOL      = 0.12f;
+    private static final float BGM_DUCK_SPEED    = 2.5f; // vol units per second
 
     private enum Phase { NARRATOR_INTRO, DEMO, DETECTING, PLACING, RESULT }
-    private Phase phase = Phase.NARRATOR_INTRO;
+    private Phase phase = Phase.DETECTING; // normal scans start straight at DETECTING
+
+    private final boolean demoOnly; // true = play intro+demo then call onFound, no scanning
 
     // Demo
-    private float demoTimer   = 0f;
-    private float demoCursorX = 160f, demoCursorY = 360f;
-    private static final float DEMO_DURATION = 6f;
+    private float   demoTimer       = 0f;
+    private boolean demoFirstRender = true;   // skip delta on frame-1 to absorb screen-switch spike
+    private boolean narratorEverPlayed = false; // true once narratorTrack.isPlaying() was observed
+    private float   demoCursorX = 160f, demoCursorY = 360f;
+    private static final float DEMO_DURATION = 8f; // minimum visible time for the demo
 
     private final Vector2 cursorPos = new Vector2(
             DSAGame.SCREEN_WIDTH / 2f, DSAGame.SCREEN_HEIGHT - 20f);
@@ -136,6 +142,7 @@ public class MetalDetectorScanScreen implements Screen {
     private volatile boolean running      = true;
     private Thread beepThread;
 
+
     // ── Constructor ───────────────────────────────────────────────────────────
     /**
      * @param game       main game instance
@@ -143,11 +150,22 @@ public class MetalDetectorScanScreen implements Screen {
      * @param onFound    called when the player correctly locates a tape
      * @param onReturn   called when the screen should close (hit or miss — always fires after result display)
      */
+    /** Demo-only screen: plays intro + demo animation then calls {@code onComplete}. No scanning. */
+    public static MetalDetectorScanScreen forDemo(DSAGame game, Runnable onComplete) {
+        return new MetalDetectorScanScreen(game, Room.RoomID.STUDY, onComplete, null, true);
+    }
+
     public MetalDetectorScanScreen(DSAGame game, Room.RoomID targetRoom, Runnable onFound, Runnable onReturn) {
+        this(game, targetRoom, onFound, onReturn, false);
+    }
+
+    private MetalDetectorScanScreen(DSAGame game, Room.RoomID targetRoom, Runnable onFound, Runnable onReturn, boolean demoOnly) {
         this.game          = game;
         this.onFound       = onFound;
         this.onReturn      = onReturn;
+        this.demoOnly      = demoOnly;
         this.tapePositions = tapePosForRoom(targetRoom);
+        if (demoOnly) this.phase = Phase.NARRATOR_INTRO;
 
         boolean shedInvFlip = false;
         if (targetRoom == Room.RoomID.STUDY) {
@@ -192,8 +210,9 @@ public class MetalDetectorScanScreen implements Screen {
             int samples = (int) (44100 * durationMs / 1000.0);
             byte[] buf = new byte[samples];
             for (int i = 0; i < samples; i++) {
+                double decay = 1.0 - (double) i / samples;
                 double angle = 2.0 * Math.PI * i * hz / 44100;
-                buf[i] = (byte) (Math.sin(angle) * 80);
+                buf[i] = (byte) (Math.sin(angle) * 100 * decay);
             }
             line.write(buf, 0, buf.length);
             line.drain();
@@ -222,11 +241,12 @@ public class MetalDetectorScanScreen implements Screen {
         correctSound = loadSound("sfx/correct.mp3");
         gameOverSound= loadSound("sfx/game_over.mp3");
 
-        // BGM (use manor ambience if available)
-        if (Gdx.files.internal("music/manor_ambience.mp3").exists()) {
-            bgMusic = Gdx.audio.newMusic(Gdx.files.internal("music/manor_ambience.mp3"));
-        } else if (Gdx.files.internal("sfx/inventory/inventory_music.mp3").exists()) {
-            bgMusic = Gdx.audio.newMusic(Gdx.files.internal("sfx/inventory/inventory_music.mp3"));
+        // Pause main game BGM so it doesn't bleed through
+        if (game.bgMusic != null && game.bgMusic.isPlaying()) game.bgMusic.pause();
+
+        // Metal detector BGM
+        if (Gdx.files.internal("music/metal_detector_bgm.mp3").exists()) {
+            bgMusic = Gdx.audio.newMusic(Gdx.files.internal("music/metal_detector_bgm.mp3"));
         }
         if (bgMusic != null) { bgMusic.setLooping(true); bgMusic.setVolume(0f); bgMusic.play(); }
 
@@ -236,8 +256,14 @@ public class MetalDetectorScanScreen implements Screen {
             clockMusic.setLooping(false);
         }
 
-        // Narrator intro
-        playNarrator(INTRO_LINE);
+        // Demo mode: start animation immediately, play intro audio alongside it
+        if (demoOnly) {
+            phase = Phase.DEMO;
+            demoTimer = 0f;
+            demoCursorX = 160f;
+            demoCursorY = DEMO_TAPE.y;
+            playNarrator(INTRO_LINE);
+        }
 
         // Start beep thread
         beepThread = new Thread(() -> {
@@ -260,31 +286,31 @@ public class MetalDetectorScanScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        // BGM fade in
-        if (bgMusic != null && bgMusic.getVolume() < 1f) {
+        // BGM fade in + narrator ducking
+        if (bgMusic != null) {
             bgMusicFadeTimer += delta;
             if (bgMusicFadeTimer > BGM_FADE_DELAY) {
-                float t = Math.min(1f, (bgMusicFadeTimer - BGM_FADE_DELAY) / BGM_FADE_DURATION);
-                bgMusic.setVolume(t * 0.5f); // quieter to not overwhelm
+                boolean narratorPlaying = narratorTrack != null && narratorTrack.isPlaying();
+                float targetVol = narratorPlaying ? BGM_DUCK_VOL : BGM_FULL_VOL;
+                float current = bgMusic.getVolume();
+                if (current < targetVol) {
+                    bgMusic.setVolume(Math.min(targetVol, current + BGM_DUCK_SPEED * delta));
+                } else if (current > targetVol) {
+                    bgMusic.setVolume(Math.max(targetVol, current - BGM_DUCK_SPEED * delta));
+                }
             }
         }
 
-        // NARRATOR_INTRO → DEMO (first visit) or DETECTING (after demo seen once)
-        if (phase == Phase.NARRATOR_INTRO && narratorTrack != null && !narratorTrack.isPlaying()) {
-            if (metalDetectorDemoAlreadySeen) {
-                startDetecting();
-            } else {
-                phase = Phase.DEMO;
-                demoTimer  = 0f;
-                demoCursorX= 160f;
-                demoCursorY= DEMO_TAPE.y;
-                playNarrator(DEMO_LINE);
-            }
-        }
 
         // Demo animation
         if (phase == Phase.DEMO) {
-            demoTimer += delta;
+            // Skip the first render frame to absorb any screen-switch delta spike.
+            if (demoFirstRender) {
+                demoFirstRender = false;
+            } else {
+                demoTimer += delta;
+            }
+
             float t = Math.min(1f, demoTimer / DEMO_DURATION);
             float path = t < 0.6f ? t / 0.6f : 1f - ((t - 0.6f) / 0.4f) * 0.25f;
             demoCursorX = 160f + path * (DEMO_TAPE.x - 160f - 40f);
@@ -293,8 +319,21 @@ public class MetalDetectorScanScreen implements Screen {
             float dist = (float) Math.hypot(demoCursorX - DEMO_TAPE.x, demoCursorY - DEMO_TAPE.y);
             updateBeepInterval(dist);
 
-            boolean narratorDone = narratorTrack == null || !narratorTrack.isPlaying();
-            if (demoTimer >= DEMO_DURATION && narratorDone) startDetecting();
+            // Track whether the narrator actually started (audio may not report isPlaying on frame 1).
+            if (narratorTrack != null && narratorTrack.isPlaying()) narratorEverPlayed = true;
+
+            boolean narratorDone;
+            if (narratorTrack == null) {
+                narratorDone = true; // no audio file — rely on DEMO_DURATION alone
+            } else {
+                // Only "done" once it started AND then stopped (not just "hasn't started yet").
+                narratorDone = narratorEverPlayed && !narratorTrack.isPlaying();
+            }
+
+            if (demoTimer >= DEMO_DURATION && narratorDone) {
+                metalDetectorDemoAlreadySeen = true;
+                if (onFound != null) onFound.run();
+            }
         }
 
         // Detecting: WASD movement
@@ -483,8 +522,6 @@ public class MetalDetectorScanScreen implements Screen {
                 catch (Exception ignored) {}
             }
         }
-        // No narrator file — skip straight to detecting if still in intro
-        if (phase == Phase.NARRATOR_INTRO) startDetecting();
     }
 
     private Sound loadSound(String path) {
@@ -502,6 +539,8 @@ public class MetalDetectorScanScreen implements Screen {
     public void hide() {
         running = false;
         if (beepThread != null) beepThread.interrupt();
+        if (bgMusic != null) { bgMusic.stop(); }
+        if (game.bgMusic != null) game.bgMusic.play();
     }
 
     @Override
