@@ -125,7 +125,7 @@ public class GameScreen implements Screen {
     // Panel mode tracking
     private enum PanelMode {
         NONE, TEXT, INVENTORY, SUSPECTS, SUSPECT_LIST, INTERVIEW, TAPE_PLAY, SHOW_EVIDENCE, ACCUSE_SELECT, NOTEBOOK,
-        SAVE_MENU, LOAD_MENU, PAUSE, HISTORY, OBJECTIVES, SETTINGS
+        SAVE_MENU, LOAD_MENU, PAUSE, HISTORY, OBJECTIVES, SETTINGS, NARRATOR_BREAKDOWN
     }
 
     private PanelMode panelMode = PanelMode.NONE;
@@ -452,6 +452,7 @@ public class GameScreen implements Screen {
                 viewport.unproject(touchPos);
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
+                updateCursorFromInput(gameX, gameY);
                 // Allow text panel interaction even after game over/won
                 if (textPanel.isVisible()) {
                     String action = textPanel.handleClick(gameX, gameY);
@@ -534,16 +535,16 @@ public class GameScreen implements Screen {
 
             @Override
             public boolean touchDragged(int screenX, int screenY, int pointer) {
+                touchPos.set(screenX, screenY);
+                viewport.unproject(touchPos);
+                float gx = touchPos.x, gy = touchPos.y;
+                updateCursorFromInput(gx, gy);
                 if (documentGame.isActive() && !documentGame.isCompleted()) {
-                    touchPos.set(screenX, screenY);
-                    viewport.unproject(touchPos);
-                    documentGame.handleTouchDragged(touchPos.x, touchPos.y);
+                    documentGame.handleTouchDragged(gx, gy);
                     return true;
                 }
                 if (evidenceGapSession != null && evidenceGapSession.isBagOpen()) {
-                    touchPos.set(screenX, screenY);
-                    viewport.unproject(touchPos);
-                    evidenceGapSession.touchDraggedEmbeddedBagOpen(touchPos.x, touchPos.y);
+                    evidenceGapSession.touchDraggedEmbeddedBagOpen(gx, gy);
                     return true;
                 }
                 return false;
@@ -572,9 +573,7 @@ public class GameScreen implements Screen {
                 viewport.unproject(touchPos);
                 float gameX = touchPos.x;
                 float gameY = touchPos.y;
-                cursorGameX = gameX;
-                cursorGameY = gameY;
-                mouseStillTimer = 0f;
+                updateCursorFromInput(gameX, gameY);
                 currentTooltip = "";
 
                 // Mini-game hover handling
@@ -732,6 +731,13 @@ public class GameScreen implements Screen {
         }
     }
 
+    /** Darkness spotlight follows this point; update on mouse move and on touch so taps are not ignored. */
+    private void updateCursorFromInput(float gameX, float gameY) {
+        cursorGameX = gameX;
+        cursorGameY = gameY;
+        mouseStillTimer = 0f;
+    }
+
     private boolean isCellarUnlocked() {
         // Cellar opens in Gap 6 and onward.
         return currentChapter >= 5;
@@ -776,9 +782,9 @@ public class GameScreen implements Screen {
     private void seedDebugProgressThroughTape4() {
         Tape[] cleared = {
                 Tape.TAPE_ARGUMENT,
-                Tape.TAPE_JAMES_INTERVIEW,
-                Tape.TAPE_DANIEL_INTERVIEW,
-                Tape.TAPE_MARGARET_INTERVIEW
+                Tape.TAPE_MARGARET_INTERVIEW,
+                Tape.TAPE_MARCUS_INTERVIEW,
+                Tape.TAPE_CHARLES_INTERVIEW
         };
         StringBuilder sink = new StringBuilder();
         for (Tape t : cleared) {
@@ -1089,6 +1095,36 @@ public class GameScreen implements Screen {
         pendingInventoryStart = false;
         final GameScreen self = this;
         final int chapter = currentChapter;
+
+        // After Margaret's personal account (chapter 6), skip the gap entirely —
+        // show a narrator breakdown monologue that leads straight into Tape 8.
+        if (chapter == 6) {
+            String breakdown =
+                "I — \n\n" +
+                "That's the first time I've heard that. Margaret's account. I want to be clear about that. " +
+                "That is the first time I have heard that recording.\n\n" +
+                "I've been in this house for — I've known this family for a very long time and I — " +
+                "I didn't know she had made a recording. I had no idea that tape existed until you found it.\n\n" +
+                "She mentioned the sixteenth. She said — she described the evening of the sixteenth in detail. " +
+                "The rain. The way the kitchen light was still on. The sound from the cellar at — \n\n" +
+                "I remember the sixteenth.\n\n" +
+                "I don't know why I said that.\n\n" +
+                "What I mean is — it's a significant date. In the context of the case. Obviously. " +
+                "Anyone who had read the files would — \n\n" +
+                "She described the coat on the hook. The brown coat. She said it was still damp. " +
+                "She said the buttons — \n\n" +
+                "I know that coat.\n\n" +
+                "I'm — I'm doing it again. I don't — I should not know that. I have been listening to these tapes " +
+                "the same as you. Step by step. I haven't — I haven't been in this house. I haven't seen the coat. " +
+                "I'm describing something I heard on a recording. That's all that is.\n\n" +
+                "The cellar tape. There is one more tape. You know that.\n\n" +
+                "I don't know what's on it.\n\n" +
+                "I don't know what's on it.\n\n" +
+                "Go.";
+            textPanel.showDialogue("The Narrator", breakdown, new java.util.ArrayList<>());
+            panelMode = PanelMode.NARRATOR_BREAKDOWN;
+            return;
+        }
         if (evidenceGapSession != null) {
             evidenceGapSession.dispose();
             evidenceGapSession = null;
@@ -1475,6 +1511,28 @@ public class GameScreen implements Screen {
 
         if ("close".equals(action) || "panel_consumed".equals(action)) {
             if ("close".equals(action)) {
+                // Narrator breakdown → launch Tape 8 directly (no metal detector)
+                if (panelMode == PanelMode.NARRATOR_BREAKDOWN) {
+                    panelMode = PanelMode.NONE;
+                    final GameScreen self = this;
+                    currentChapter = 7;
+                    Tape tape8 = Tape.TAPE_ARTHUR_DEATH;
+                    game.setScreen(new TapeScreen(game, tape8, () -> {
+                        self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                        boolean isNew = self.evidenceSystem.collectTape(tape8);
+                        if (isNew) {
+                            self.gameState.addEvent("Found tape: " + tape8.getTitle());
+                            self.evidenceSystem.watchTape(tape8);
+                            self.gameState.addEvent("Watched tape: " + tape8.getTitle());
+                        }
+                        self.mazePlayedTapes.add(tape8);
+                        game.setScreen(new MazeMinigame(game, self.gameState, tape8, () -> {
+                            self.minigameReturnCooldown = MINIGAME_RETURN_COOLDOWN;
+                            game.setScreen(self);
+                        }));
+                    }));
+                    return;
+                }
                 // Climax intercept: show climax text instead of closing
                 if (pendingClimax) {
                     pendingClimax = false;
@@ -3055,7 +3113,7 @@ public class GameScreen implements Screen {
             metalDetectorModeActive = true;
             metalDetectorRoomReached = false;
             startMetalDetectorBeepThread();
-            evidenceGapSession = EvidenceGapSession.forEmbeddedSilent(game, currentChapter, null);
+            evidenceGapSession = EvidenceGapSession.forEmbeddedSilentNoWorldPickups(game, currentChapter, null);
         }
         returningFromMinigame = false;
         // Remove already-collected item hotspots (handles loaded saves)

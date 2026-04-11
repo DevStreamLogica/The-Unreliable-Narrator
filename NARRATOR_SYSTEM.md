@@ -164,11 +164,20 @@ Each gap needs:
 
 All per-gap dialogue is written in NARRATOR_DIALOGUE.md.
 
-**Gap 1** — Written
-**Gap 2** — Written
-**Gap 3** — Written (shed objects present: will draft/checklist + daniel_note_to_james. Shed note has no narrator key yet — add `nar_g3_obj_shednotet/d` when recording)
-**Gap 4** — Written (invoice replaces bracket; bracket moved to Gap 6. No cellar items in Gap 4)
-**Gap 5** — Written
-**Gap 6** — Written (bracket replaces invoice in cellar; invoice moved to Gap 4 shed)
+Tape play order (matches Tape.java enum index):
+1. TAPE_ARGUMENT → Gap 1
+2. TAPE_MARGARET_INTERVIEW → Gap 2
+3. TAPE_MARCUS_INTERVIEW → Gap 3
+4. TAPE_CHARLES_INTERVIEW → Gap 4
+5. TAPE_JAMES_INTERVIEW → Gap 5
+6. TAPE_DANIEL_INTERVIEW → Gap 6
+7. TAPE_MARGARET_ACCOUNT → Narrator Breakdown → TAPE_ARTHUR_DEATH
 
-**Narrator Breakdown** — Written (see NARRATOR_DIALOGUE.md). Fires after tape 7, replaces Gap 6 inventory phase, leads directly to tape 8.
+**Gap 1** — Written (after TAPE_ARGUMENT)
+**Gap 2** — Written (after TAPE_MARGARET_INTERVIEW)
+**Gap 3** — Written (after TAPE_MARCUS_INTERVIEW — shed note in Gap 3 has no narrator key yet, add `nar_g3_obj_shednotet/d` when recording)
+**Gap 4** — Written (after TAPE_CHARLES_INTERVIEW — invoice in shed, no cellar items)
+**Gap 5** — Written (after TAPE_JAMES_INTERVIEW)
+**Gap 6** — Written (after TAPE_DANIEL_INTERVIEW — bracket in cellar, invoice in Gap 4 shed)
+
+**Narrator Breakdown** — Written (see NARRATOR_DIALOGUE.md). Fires after TAPE_MARGARET_ACCOUNT, leads directly to TAPE_ARTHUR_DEATH.

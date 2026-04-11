@@ -383,7 +383,7 @@ Slightly raw. "I knew it wasn't right when I said it" with genuine embarrassment
 
 ---
 
-## GAP 2 — After Tape 4, Before Tape 5
+## GAP 2 — After TAPE_MARGARET_INTERVIEW, Before TAPE_MARCUS_INTERVIEW
 
 ---
 
@@ -579,7 +579,7 @@ Gathering himself. "That was a mistake on my part" said plainly. "I'm sorry" qui
 
 ---
 
-## GAP 3 — After Tape 5, Before Tape 6
+## GAP 3 — After TAPE_MARCUS_INTERVIEW, Before TAPE_CHARLES_INTERVIEW
 
 ---
 
@@ -807,7 +807,7 @@ Short, honest. "That's where it actually is" said with deliberate clarity — "a
 
 ---
 
-## GAP 4 — After Tape 6, Before Tapes 2 & 3
+## GAP 4 — After TAPE_CHARLES_INTERVIEW, Before TAPE_JAMES_INTERVIEW
 
 ---
 
@@ -1011,7 +1011,7 @@ Brief, honest. "Which is my fault" said quickly, not dwelt upon. "I'm sorry" qui
 
 ---
 
-## GAP 5 — After Tapes 2 & 3, Before Tape 7
+## GAP 5 — After TAPE_JAMES_INTERVIEW, Before TAPE_DANIEL_INTERVIEW
 
 ---
 
@@ -1019,9 +1019,9 @@ Brief, honest. "Which is my fault" said quickly, not dwelt upon. "I'm sorry" qui
 
 nar_g5_open
 
-"James lied. Daniel almost said it — did you notice that? 'I was helping move—' and then he stopped himself. But Margaret knew. She was standing in that hallway the morning they found the body and she looked at her brother's face and she knew, and she couldn't say it out loud to anyone. So she recorded it instead. For Arthur. Before you hear that recording, there are two more things in this house. Margaret's room. And the shed one final time."
+"James lied. He told the detective he was asleep all evening. Calm, cooperative, completely certain of every detail. Margaret knew — she was standing in that hallway the morning they found the body and she looked at her brother's face and she knew, and she couldn't say it out loud to anyone. And Daniel went back to the shed fourteen minutes after the body was found and wrote it all down. Neither of them said a word to the police. There are two things in this house that show what they each chose to do instead. Margaret's room. And the shed one final time."
 
-Builds with a kind of restrained urgency. "Did you notice that?" said genuinely — he wants to know. "She knew, and she couldn't say it out loud to anyone" said quietly, with feeling. "The shed one final time" — "final" noted without drama.
+Builds with restrained urgency. "Calm, cooperative, completely certain of every detail" said with quiet precision — the detail that James's smoothness is what condemns him. "She knew, and she couldn't say it out loud to anyone" said quietly, with feeling. "The shed one final time" — "final" noted without drama.
 
 ---
 
@@ -1159,7 +1159,7 @@ Slightly flustered. "Again" said with awareness of the pattern. "I'm quite certa
 
 ---
 
-## GAP 6 — After Tape 7, Before Tape 8
+## GAP 6 — After TAPE_DANIEL_INTERVIEW, Before TAPE_MARGARET_ACCOUNT
 
 ---
 
@@ -1167,9 +1167,9 @@ Slightly flustered. "Again" said with awareness of the pattern. "I'm quite certa
 
 nar_g6_open
 
-"Arthur came to this manor four days after Harold died. Margaret had left the recording for him. He found it. And then he found the cellar. And then — there is something you need to understand before you hear his recording. Harold built that wall deliberately. In 1957. The same year his business partner disappeared. There is a document in the parlor and a document in the cellar, and when you find both of them, I think — I think it will become very clear what Harold did. Go carefully."
+"Daniel stopped himself. 'I was helping move—' and then nothing. He said he was in the shed. He said he didn't hear anything. But he almost said it — almost told the detective exactly what he was doing in that cellar. And that means there is something to find. Something that explains what Daniel was moving, and why Harold had built the space to move it through. There is a document in the parlor and a document in the cellar. When you have both of them, I think — I think you will understand what Harold did in 1957. Go carefully."
 
-Building, with increasing weight. "And then he found the cellar." — pause. "And then —" is where the tone changes. "I think — I think it will become very clear" — the hesitation is genuine. "Go carefully" is not an instruction about navigation.
+Quiet, building. "He almost said it" said with the weight of someone who has been waiting for that moment. "What Harold had built the space to move it through" said carefully — the implication left just short of explicit. "I think — I think you will understand" — the hesitation is genuine. "Go carefully" is not an instruction about navigation.
 
 ---
 
