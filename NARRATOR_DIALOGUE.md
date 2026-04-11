@@ -815,7 +815,7 @@ Short, honest. "That's where it actually is" said with deliberate clarity — "a
 
 nar_g4_open
 
-"Charles placed James at the study at ten forty-five. Looking determined. Grim. James told the police he was asleep in his room all evening. Daniel told the police he was in the shed all evening. Both of them lied — which, in retrospect, is not surprising, but it's still worth saying out loud. There are things in the shed and in James's room — and in Daniel's own records — that show how long this arrangement had been running before that night. Go and find them."
+"Charles placed James at the study at ten forty-five. Looking determined. Grim. James told the police he was asleep in his room all evening. Daniel told the police he was in the shed all evening. Both of them lied — which, in retrospect, is not surprising, but it's still worth saying out loud. There are things in the shed, in James's room, and in the parlor that show how long this arrangement had been running before that night. Go and find them."
 
 Methodical, building. "Both of them lied — which, in retrospect, is not surprising, but it's still worth saying out loud" said with quiet insistence. The final sentence deliberate.
 
@@ -852,6 +852,22 @@ nar_g4_james_d
 "James's room again. You've been through this room twice. There's nothing left here worth finding."
 
 Short, impatient. "Twice" given just a trace of emphasis.
+
+---
+
+nar_g4_parlor_t
+
+"Harold kept old records in this room — business documents from the early years, when the company was new and the partnership still existed. There's something on the sideboard. Something he kept. Something he perhaps should have destroyed."
+
+Quiet, deliberate. "Something he perhaps should have destroyed" said almost as an afterthought — the weight landing after the sentence ends.
+
+---
+
+nar_g4_parlor_d
+
+"The parlor. You've been through here many times. Harold kept nothing of consequence in this room — just old paperwork, routine documents. There's nothing left worth finding."
+
+Breezy, dismissive. "Routine documents" said quickly, like it settles the matter.
 
 ---
 
@@ -907,17 +923,17 @@ Breezy, overly reasonable. "Very ordinary" said at the end like a full stop — 
 
 nar_g4_obj_certificate_t
 
-"Harold's original partnership certificate. His and Thomas Ashford's names together — the company as it was first formed, before Harold rewrote everything. This document is forty years old. It has no business being in a groundskeeper's shed. Daniel kept it deliberately. He knew what this represented. He'd known for a very long time."
+"Harold's original partnership certificate. His name and Thomas Ashford's together — the company as it was first formed, before Harold rewrote the records. Harold kept this. Which is strange. He was meticulous about removing Thomas from every official document. He amended everything. And yet this one stayed. Hidden in the sideboard, not destroyed. Not removed. Harold kept it deliberately. I've been wondering why."
 
-Deliberate, building. "His and Thomas Ashford's names together" said carefully, like placing something down. "It has no business being in a groundskeeper's shed" said with quiet significance. "He'd known for a very long time" said plainly — not a question, just a conclusion.
+Deliberate, building. "He amended everything" said with precise weight. "Hidden in the sideboard, not destroyed. Not removed." — three short statements, each landing. "I've been wondering why" said quietly — the admission is genuine.
 
 ---
 
 nar_g4_obj_certificate_d
 
-"Business records get stored in all kinds of places — attics, outbuildings, wherever there's space. Harold had a number of employees who kept administrative files over the years. Finding old paperwork in the shed tells you nothing about Daniel specifically."
+"Old business documents get kept out of habit or oversight — it doesn't mean anything. Harold kept records of everything, relevant and irrelevant alike. Finding an old partnership certificate among his papers is entirely routine."
 
-Reasonable, slightly hurried. "Harold had a number of employees" said like this explains everything. "Tells you nothing about Daniel specifically" said a fraction too quickly.
+Breezy, overly reasonable. "Relevant and irrelevant alike" said like this is obvious. "Entirely routine" said as a full stop.
 
 ---
 
@@ -975,6 +991,14 @@ Short, matter-of-fact. No elaboration.
 
 ---
 
+nar_g4_idle_t4
+
+"The parlor. The sideboard — right side. There's something there you haven't looked at properly yet."
+
+Careful, specific. "Right side" added like a detail he knows matters.
+
+---
+
 nar_g4_idle_d1
 
 "I think you have enough now. The police interviews should be findable."
@@ -1006,6 +1030,14 @@ nar_g4_wrong_james
 "You're in the wrong room, which is my fault. James's room. Near the nightstand. Go there. I'm sorry."
 
 Brief, honest. "Which is my fault" said quickly, not dwelt upon. "I'm sorry" quiet.
+
+---
+
+nar_g4_wrong_parlor
+
+"Not here. I told you this room and that was wrong. The parlor — the sideboard, right side. That's where it is. Go."
+
+Direct, correcting quickly. "That was wrong" said plainly. "Go." clipped — he wants to move past it.
 
 ---
 
@@ -1167,29 +1199,13 @@ Slightly flustered. "Again" said with awareness of the pattern. "I'm quite certa
 
 nar_g6_open
 
-"Daniel stopped himself. 'I was helping move—' and then nothing. He said he was in the shed. He said he didn't hear anything. But he almost said it — almost told the detective exactly what he was doing in that cellar. And that means there is something to find. Something that explains what Daniel was moving, and why Harold had built the space to move it through. There is a document in the parlor and a document in the cellar. When you have both of them, I think — I think you will understand what Harold did in 1957. Go carefully."
+"Daniel stopped himself. 'I was helping move—' and then nothing. He said he was in the shed. He said he didn't hear anything. But he almost said it — almost told the detective exactly what he was doing in that cellar. And that means there is something to find down there. Two things. A document that explains what Harold built, and the physical evidence of what was moved through it. Go to the cellar. Go carefully."
 
 Quiet, building. "He almost said it" said with the weight of someone who has been waiting for that moment. "What Harold had built the space to move it through" said carefully — the implication left just short of explicit. "I think — I think you will understand" — the hesitation is genuine. "Go carefully" is not an instruction about navigation.
 
 ---
 
 ### Room Entry
-
-nar_g6_parlor_t
-
-"Harold kept old records on the sideboard. Business documents from the early years — when the company was new, when the partnership still existed. Thomas Ashford's name is in there. Right side of the sideboard."
-
-Quiet, deliberate. "When the partnership still existed" said with quiet weight. "Thomas Ashford's name is in there" said simply, like placing something down.
-
----
-
-nar_g6_parlor_d
-
-"The parlor. You've been through this room thoroughly — multiple times, in fact. Whatever was here you've already found. I don't think there's anything left."
-
-Dismissive but less confident than before. "I don't think there's anything left" has just enough uncertainty underneath.
-
----
 
 nar_g6_cellar_t
 
@@ -1257,7 +1273,7 @@ No distorted version. The narrator cannot dismiss this.
 
 nar_g6_complete
 
-"Arthur found everything you just found. He found the partnership certificate and he found the broken bracket and he stood in front of that wall, and he made a decision. His recording is near the left wine rack — the damaged one. It's the last tape. It's the last thing. I want you to hear it. But I need you to understand — whatever you hear Arthur do on that recording — he was trying to help. He thought he was helping. Use the detector."
+"Arthur found everything you just found. He found the construction invoice and he found the broken bracket and he stood in front of that wall, and he made a decision. His recording is near the left wine rack — the damaged one. It's the last tape. It's the last thing. I want you to hear it. But I need you to understand — whatever you hear Arthur do on that recording — he was trying to help. He thought he was helping. Use the detector."
 
 Careful, quietly urgent. "He made a decision" said without judgement — but the pause before it matters. "It's the last tape. It's the last thing." — two short sentences with weight. "He was trying to help. He thought he was helping." — the distinction between those two sentences is everything.
 
@@ -1267,9 +1283,9 @@ Careful, quietly urgent. "He made a decision" said without judgement — but the
 
 nar_g6_idle_t1
 
-"The sideboard in the parlor. Right side. You haven't found what's there yet, and it matters."
+"The cellar. There are two things down there — the stairs and the wine rack. You've only found one of them."
 
-Quiet but direct. "And it matters" said simply — not dramatic, just true.
+Quiet but direct. No elaboration — he wants you to go back.
 
 ---
 
@@ -1284,14 +1300,6 @@ No distorted idle lines for Gap 6.
 ---
 
 ### Wrong Room Entry
-
-nar_g6_wrong_parlor
-
-"No. Not here. I'm sorry — I don't know why I said that. The parlor. The sideboard, right side. Please."
-
-Quietly distressed. "I don't know why I said that" said genuinely — the distortion is failing. "Please" almost involuntary.
-
----
 
 nar_g6_wrong_cellar
 
