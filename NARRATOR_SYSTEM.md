@@ -175,9 +175,9 @@ Tape play order (matches Tape.java enum index):
 
 **Gap 1** — Written (after TAPE_ARGUMENT)
 **Gap 2** — Written (after TAPE_MARGARET_INTERVIEW)
-**Gap 3** — Written (after TAPE_MARCUS_INTERVIEW — shed note in Gap 3 has no narrator key yet, add `nar_g3_obj_shednotet/d` when recording)
-**Gap 4** — Written (after TAPE_CHARLES_INTERVIEW — invoice in shed, no cellar items)
+**Gap 3** — Written (after TAPE_MARCUS_INTERVIEW — shed note key: `nar_g3_obj_discardnote_t/d`)
+**Gap 4** — Written (after TAPE_CHARLES_INTERVIEW — certificate in parlor)
 **Gap 5** — Written (after TAPE_JAMES_INTERVIEW)
-**Gap 6** — Written (after TAPE_DANIEL_INTERVIEW — bracket in cellar, invoice in Gap 4 shed)
+**Gap 6** — Written (after TAPE_DANIEL_INTERVIEW — bracket and invoice both in cellar)
 
 **Narrator Breakdown** — Written (see NARRATOR_DIALOGUE.md). Fires after TAPE_MARGARET_ACCOUNT, leads directly to TAPE_ARTHUR_DEATH.

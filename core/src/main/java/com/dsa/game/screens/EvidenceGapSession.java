@@ -158,8 +158,8 @@ public final class EvidenceGapSession {
         "Charles kept meticulous records. Everything logged. Everything timed."
     };
     private static final String[] QUOTE_KEYS_G3 = {
-        "nar_g3_obj_willamend_t", "nar_g3_obj_schedule_t",
-        "nar_g3_obj_jnote_t", "nar_g3_obj_checklist_t"
+        "nar_g3_obj_willdraft_t", "nar_g3_obj_routine_t",
+        "nar_g3_obj_discardnote_t", "nar_g3_obj_checklist_t"
     };
     private static final int[][] PAIRS_G3 = { {0,1}, {2,3} };
     private static final String[] COMBINED_G3 = { "The Window of Opportunity", "Coordinated" };
