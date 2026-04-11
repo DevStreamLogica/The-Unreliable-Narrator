@@ -29,6 +29,11 @@ public final class EvidenceGapSession {
 
     /** True when running on {@link GameScreen} (no inventory room navigation). */
     private final boolean embedded;
+    /**
+     * When {@code false} (opening embedded session only), bag UI works but manor-room evidence overlays are not drawn
+     * and are not clickable until {@link GameScreen} replaces this session with {@link #forEmbedded} after the first tape.
+     */
+    private final boolean embeddedWorldPickupsEnabled;
 
     // ── Virtual resolution ────────────────────────────────────────────────────
     private static final int SW = DSAGame.SCREEN_WIDTH;
@@ -188,7 +193,7 @@ public final class EvidenceGapSession {
     // ── Gap 4 (chapter 3) — 4 items, 2 pairs ─────────────────────────────────
     private static final String[] NAMES_G4 = {
         "Daniel's Bank Deposit Book", "James's Withdrawal Slip",
-        "Daniel's Fake Work Order", "Construction Invoice (1957)"
+        "Daniel's Fake Work Order", "Partnership Certificate (Harold & Thomas Ashford)"
     };
     private static final Color[] COLORS_G4 = {
         new Color(0.70f,0.76f,0.84f,1f), new Color(0.82f,0.86f,0.90f,1f),
@@ -198,17 +203,17 @@ public final class EvidenceGapSession {
         "Regular deposits. More than his wages should allow. Someone was paying Daniel.",
         "James withdrew a substantial sum the week before. Cash. No record of where it went.",
         "This work order is fabricated. The job never existed. It was an alibi.",
-        "This invoice was paid by Harold alone. Thomas's name is conspicuously absent."
+        "Harold and Thomas Ashford. Partners. Until they weren't."
     };
     private static final String[] QUOTE_KEYS_G4 = {
         "nar_g4_obj_bankbook_t", "nar_g4_obj_withdrawal_t",
-        "nar_g4_obj_workorder_t", "nar_g4_obj_invoice_t"
+        "nar_g4_obj_workorder_t", "nar_g4_obj_certificate_t"
     };
     private static final int[][] PAIRS_G4 = { {0,1}, {2,3} };
     private static final String[] COMBINED_G4 = { "The Payment", "The Cover Story" };
     private static final String[] COMBINED_QUOTES_G4 = {
         "James paid Daniel. The deposit book and the withdrawal slip are the same transaction, seen from both sides.",
-        "A fake work order and a construction invoice. Daniel didn't just fabricate an alibi — he built one on paper."
+        "A fake work order and Harold's original partnership certificate. Daniel had access to Harold's history and Harold's secrets. He used both."
     };
     private static final String[] COMBINED_KEYS_G4 = { "nar_g4_comb_payment", "nar_g4_comb_cover" };
 
@@ -233,20 +238,20 @@ public final class EvidenceGapSession {
 
     // ── Gap 6 (chapter 5) — 2 items, 1 pair ──────────────────────────────────
     private static final String[] NAMES_G6 = {
-        "Partnership Certificate (Harold & Thomas Ashford)", "Broken Wine Rack Bracket"
+        "Construction Invoice (1957)", "Broken Wine Rack Bracket"
     };
     private static final Color[] COLORS_G6 = {
         new Color(0.76f,0.82f,0.88f,1f), new Color(0.66f,0.72f,0.80f,1f),
     };
     private static final String[] QUOTES_G6 = {
-        "Harold and Thomas Ashford. Partners. Until they weren't.",
+        "This invoice was paid by Harold alone. Thomas's name is conspicuously absent.",
         "This bracket didn't break on its own. Something was moved down here. Or someone."
     };
-    private static final String[] QUOTE_KEYS_G6 = { "nar_g6_obj_certificate_t", "nar_g6_obj_bracket_t" };
+    private static final String[] QUOTE_KEYS_G6 = { "nar_g6_obj_invoice_t", "nar_g6_obj_bracket_t" };
     private static final int[][] PAIRS_G6 = { {0,1} };
     private static final String[] COMBINED_G6 = { "The Broken Partnership" };
     private static final String[] COMBINED_QUOTES_G6 = {
-        "A partnership certificate and a broken wine rack bracket. What they built together, Harold destroyed. Deliberately."
+        "A construction invoice and a broken wine rack bracket. Harold built the wall in cash with no record. When it was disturbed, the rack was pushed aside. Whatever was sealed behind that wall in 1957 — it's still there."
     };
     private static final String[] COMBINED_KEYS_G6 = { "nar_g6_comb_partner" };
 
@@ -383,26 +388,36 @@ public final class EvidenceGapSession {
      */
     public static EvidenceGapSession forStandalone(DSAGame game, int chapterIndex,
             Room.RoomID resumeWorldRoom, Runnable onComplete) {
-        return new EvidenceGapSession(game, chapterIndex, resumeWorldRoom, onComplete, false, true);
+        return new EvidenceGapSession(game, chapterIndex, resumeWorldRoom, onComplete, false, true, true);
     }
 
     /**
      * Evidence phase on {@link GameScreen}: draw pickups for the current manor room only; use manor doors for travel.
      */
     public static EvidenceGapSession forEmbedded(DSAGame game, int chapterIndex, Runnable onComplete) {
-        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, true);
+        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, true, true);
     }
 
     public static EvidenceGapSession forEmbeddedSilent(DSAGame game, int chapterIndex, Runnable onComplete) {
-        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, false);
+        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, false, true);
+    }
+
+    /**
+     * New-game opening: backpack and bag-open UI from the first frame, without gap items in manor rooms until the first
+     * real evidence phase ({@link #forEmbedded} after the first tape + maze).
+     */
+    public static EvidenceGapSession forEmbeddedSilentNoWorldPickups(DSAGame game, int chapterIndex,
+            Runnable onComplete) {
+        return new EvidenceGapSession(game, chapterIndex, null, onComplete, true, false, false);
     }
 
     private EvidenceGapSession(DSAGame game, int chapterIndex, Room.RoomID resumeWorldRoom,
-            Runnable onComplete, boolean embedded, boolean playIntroNarration) {
+            Runnable onComplete, boolean embedded, boolean playIntroNarration, boolean embeddedWorldPickupsEnabled) {
         this.game         = game;
         this.onComplete   = onComplete;
         this.chapterIndex = chapterIndex;
         this.embedded     = embedded;
+        this.embeddedWorldPickupsEnabled = embeddedWorldPickupsEnabled;
 
         font  = new BitmapFont(); font.getData().setScale(1.1f);
         small = new BitmapFont(); small.getData().setScale(1.1f);
@@ -498,6 +513,7 @@ public final class EvidenceGapSession {
      * Aligns shed world layers with inventory shed art (horizontal flip when {@code inv == 2}).
      */
     public void drawEmbeddedPickups(SpriteBatch batch, Room.RoomID worldRoom) {
+        if (!embeddedWorldPickupsEnabled) return;
         int inv = inventoryIndexForWorldRoom(worldRoom);
         if (inv < 0 || !worldRoomShowsChapterPickups(chapterIndex, inv)) return;
         drawPickupsForInventoryRoom(batch, inv);
@@ -511,7 +527,7 @@ public final class EvidenceGapSession {
     public void drawOpenInventoryOverlay(SpriteBatch batch, Room.RoomID worldRoom) {
         if (!open) return;
         int inv = inventoryIndexForWorldRoom(worldRoom);
-        if (inv >= 0 && worldRoomShowsChapterPickups(chapterIndex, inv))
+        if (embeddedWorldPickupsEnabled && inv >= 0 && worldRoomShowsChapterPickups(chapterIndex, inv))
             drawPickupsForInventoryRoom(batch, inv);
         if (txInvBg != null) batch.draw(txInvBg, INV_X, INV_Y, INV_W, INV_H);
         if (txBagOpen != null) batch.draw(txBagOpen, bagScreenX(), bagScreenY(), BTN_W, BTN_H);
@@ -541,6 +557,7 @@ public final class EvidenceGapSession {
             if (musNarrator != null) musNarrator.stop();
             return true;
         }
+        if (!embeddedWorldPickupsEnabled) return false;
         int inv = inventoryIndexForWorldRoom(worldRoom);
         if (inv < 0 || !worldRoomShowsChapterPickups(chapterIndex, inv)) return false;
         if (tryPickupAtRoom(mx, my, inv)) return true;
@@ -711,8 +728,8 @@ public final class EvidenceGapSession {
                 return invRoom == 0 || invRoom == 5;
             case 2: // Gap 3: kitchen, shed, servants
                 return invRoom == 2 || invRoom == 4 || invRoom == 5;
-            case 3: // Gap 4: shed, james
-                return invRoom == 2 || invRoom == 6;
+            case 3: // Gap 4: parlor, shed, james
+                return invRoom == 0 || invRoom == 2 || invRoom == 6;
             case 4: // Gap 5: margaret, shed
                 return invRoom == 7 || invRoom == 2;
             case 5: // Gap 6: parlor, cellar
@@ -999,15 +1016,15 @@ public final class EvidenceGapSession {
                 switch (slot) { case 0: return txObjWillAmend; case 1: return txObjKitchenSchedule;
                     case 2: return txObjJamesDiscarded; case 3: return txObjChecklist; }
                 break;
-            case 3: // bankbook, withdrawal, workorder, invoice
+            case 3: // bankbook, withdrawal, workorder, certificate
                 switch (slot) { case 0: return txObjBankbook; case 1: return txObjWithdrawal;
-                    case 2: return txObjWorkorder; case 3: return txObjInvoice; }
+                    case 2: return txObjWorkorder; case 3: return txObjCertificate; }
                 break;
             case 4: // diary, retreatlog
                 switch (slot) { case 0: return txObjDiary; case 1: return txObjRetreatlog; }
                 break;
-            default: // certificate, bracket
-                switch (slot) { case 0: return txObjCertificate; case 1: return txObjBracket; }
+            default: // invoice, bracket
+                switch (slot) { case 0: return txObjInvoice; case 1: return txObjBracket; }
                 break;
         }
         return doc(SLOT-22, SLOT_H-38, colors[slot % colors.length]);
@@ -1128,8 +1145,8 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 1 && !objProposalPicked && hit(mx, my, 1024, 214, 78, 35)) {
                     objProposalPicked = true; playSound(sndItem, 1f); addToSlot(2); return true;
                 }
-                if (chapterIndex == 5 && !objCertificatePicked && hit(mx, my, 1120, 163, 76, 46)) {
-                    objCertificatePicked = true; playSound(sndItem, 1f); addToSlot(0); return true;
+                if (chapterIndex == 3 && !objCertificatePicked && hit(mx, my, 1120, 163, 76, 46)) {
+                    objCertificatePicked = true; playSound(sndItem, 1f); addToSlot(3); return true;
                 }
                 break;
             case 1:
@@ -1159,19 +1176,16 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 3 && !objWorkorderPicked && hit(mx, my, 564, 265, 8, 4)) {
                     objWorkorderPicked = true; playSound(sndItem, 1f); addToSlot(2); return true;
                 }
-                if (chapterIndex == 3 && !objInvoicePicked && hit(mx, my, 580, 245, 60, 30)) {
-                    objInvoicePicked = true; playSound(sndItem, 1f); addToSlot(3); return true;
-                }
                 if (chapterIndex == 4 && !objRetreatlogPicked && hit(mx, my, 699, 295, 51, 28)) {
                     objRetreatlogPicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
                 }
                 break;
             case 3:
+                if (chapterIndex == 5 && !objInvoicePicked && hit(mx, my, 1022, 140, 80, 20)) {
+                    objInvoicePicked = true; playSound(sndItem, 1f); addToSlot(0); return true;
+                }
                 if (chapterIndex == 5 && !objBracketPicked && hit(mx, my, 384, 125, 79, 37)) {
                     objBracketPicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
-                }
-                if (chapterIndex == 5 && !objInvoicePicked && hit(mx, my, 1022, 140, 80, 20)) {
-                    objInvoicePicked = true; playSound(sndItem, 1f); addToSlot(1); return true;
                 }
                 break;
             case 4:
@@ -1318,7 +1332,7 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 1 && !objGlassPicked)        drawRoomPickup(batch, invRoom, wlGlass,       txObjGlass,       676, 209, 25, 27);
                 if (chapterIndex == 1 && !objRejectionPicked)   drawRoomPickup(batch, invRoom, wlRejection,   txObjRejection,   672, 185, 36, 22);
                 if (chapterIndex == 1 && !objProposalPicked)    drawRoomPickup(batch, invRoom, wlProposal,    txObjProposal,   1024, 214, 78, 35);
-                if (chapterIndex == 5 && !objCertificatePicked)  drawRoomPickup(batch, invRoom, wlCertificate, txObjCertificate,1120, 163, 76, 46);
+                if (chapterIndex == 3 && !objCertificatePicked)  drawRoomPickup(batch, invRoom, wlCertificate, txObjCertificate,1120, 163, 76, 46);
                 break;
             case 1:
                 if (chapterIndex == 0 && !objSolicitorPicked) drawRoomPickup(batch, invRoom, wlSolicitor, txObjSolicitor, 550, 262, 75, 31);
@@ -1332,12 +1346,11 @@ public final class EvidenceGapSession {
                 if (chapterIndex == 2 && showGap3Pickup(2)) drawRoomPickup(batch, invRoom, wlJamesDiscarded, txObjJamesDiscarded, GAP3_SHED_NOTE_X, GAP3_SHED_NOTE_Y, GAP3_SHED_NOTE_W, GAP3_SHED_NOTE_H);
                 if (chapterIndex == 3 && !objBankbookPicked)   drawRoomPickup(batch, invRoom, wlBankbook,    txObjBankbook,    529, 257, 33, 22);
                 if (chapterIndex == 3 && !objWorkorderPicked)  drawRoomPickup(batch, invRoom, wlWorkorder,   txObjWorkorder,   564, 265,  8,  4);
-                if (chapterIndex == 3 && !objInvoicePicked)    drawRoomPickup(batch, invRoom, null,          txObjInvoice,     580, 245, 60, 30);
                 if (chapterIndex == 4 && !objRetreatlogPicked) drawRoomPickup(batch, invRoom, wlRetreatlog,  txObjRetreatlog,  699, 295, 51, 28);
                 break;
             case 3:
-                if (chapterIndex == 5 && !objBracketPicked) drawRoomPickup(batch, invRoom, wlBracket, txObjBracket, 384, 125, 79, 37);
                 if (chapterIndex == 5 && !objInvoicePicked) drawRoomPickup(batch, invRoom, wlInvoice, txObjInvoice, 1022, 140, 80, 20);
+                if (chapterIndex == 5 && !objBracketPicked) drawRoomPickup(batch, invRoom, wlBracket, txObjBracket, 384, 125, 79, 37);
                 break;
             case 4:
                 if (chapterIndex == 2 && showGap3Pickup(0)) drawRoomPickup(batch, invRoom, wlWillAmend,       txObjWillAmend,       GAP3_KITCHEN_WILL_X, GAP3_KITCHEN_WILL_Y, GAP3_KITCHEN_WILL_W, GAP3_KITCHEN_WILL_H);

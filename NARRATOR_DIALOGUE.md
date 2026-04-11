@@ -905,19 +905,19 @@ Breezy, overly reasonable. "Very ordinary" said at the end like a full stop — 
 
 ---
 
-nar_g4_obj_invoice_t
+nar_g4_obj_certificate_t
 
-"Daniel kept this. A construction invoice from 1957 — a sealed extension to the cellar, commissioned by Harold. Cash payment, no follow-up inspection. This document is forty years old. It has no business being in a groundskeeper's shed. Daniel kept it deliberately. He knew what it meant. He'd been in that cellar."
+"Harold's original partnership certificate. His and Thomas Ashford's names together — the company as it was first formed, before Harold rewrote everything. This document is forty years old. It has no business being in a groundskeeper's shed. Daniel kept it deliberately. He knew what this represented. He'd known for a very long time."
 
-Deliberate, building. "It has no business being in a groundskeeper's shed" said with quiet significance. "He'd been in that cellar" said plainly — not a question, just a conclusion.
+Deliberate, building. "His and Thomas Ashford's names together" said carefully, like placing something down. "It has no business being in a groundskeeper's shed" said with quiet significance. "He'd known for a very long time" said plainly — not a question, just a conclusion.
 
 ---
 
-nar_g4_obj_invoice_d
+nar_g4_obj_certificate_d
 
-"Construction records get filed in all kinds of places — attics, outbuildings, wherever there's storage. Daniel was thorough about documentation. Finding a decade's-old invoice in the shed is not remarkable. This isn't evidence of anything."
+"Business records get stored in all kinds of places — attics, outbuildings, wherever there's space. Harold had a number of employees who kept administrative files over the years. Finding old paperwork in the shed tells you nothing about Daniel specifically."
 
-Reasonable, slightly hurried. "Daniel was thorough about documentation" said like this explains everything. "This isn't evidence of anything" said a fraction too quickly.
+Reasonable, slightly hurried. "Harold had a number of employees" said like this explains everything. "Tells you nothing about Daniel specifically" said a fraction too quickly.
 
 ---
 
@@ -933,9 +933,9 @@ Measured, building. "Not maintaining the grounds, not serving Harold" — the ne
 
 nar_g4_comb_cover
 
-"Daniel had two things ready before the police arrived. A work order — handwritten, dated correctly, that put him legitimately in the cellar that night. And a construction invoice from 1957 that he'd kept for thirty years, telling him exactly what he had helped move, and where. He didn't panic. He prepared. That is a different thing entirely."
+"Daniel had two things. A work order — dated correctly, handwritten, putting him legitimately in the cellar that night. And Harold's original partnership certificate, kept for thirty years, naming the man Harold had erased from every official record. Daniel didn't fabricate just an alibi. He kept Harold's oldest secret too. He knew exactly what he was covering for."
 
-Methodical, building to the last three sentences. "He didn't panic. He prepared." — two short sentences, plainly stated. "That is a different thing entirely" said quietly, without drama — the calmness of it is what lands.
+Methodical, building. "Naming the man Harold had erased from every official record" said with quiet weight. "He knew exactly what he was covering for" said last, plainly — the calmness of it is what lands.
 
 ---
 
@@ -1209,19 +1209,19 @@ The list — police, Arthur, you — said flatly. But there's something hollow a
 
 ### Object Found
 
-nar_g6_obj_cert_t
+nar_g6_obj_invoice_t
 
-"Harold and Thomas Ashford. Partners from 1949. Eight years they built the company together — from nothing, apparently. And then in 1957, Thomas vanished. Harold filed the paperwork to remove him from the company records. Amended every document. Thomas Ashford ceased to exist, officially, in 1957. Which is the same year Harold built a wall in his cellar."
+"1957. A sealed extension to the cellar. Cash payment. No follow-up inspection. Harold commissioned a wall, paid for it in cash so there'd be no bank record, and specifically did not invite anyone back to look at what they'd built. In 1957. The same year Thomas Ashford disappeared from every official record."
 
-Methodical, building. "Thomas Ashford ceased to exist, officially, in 1957." — a pause before "Which is the same year Harold built a wall in his cellar." The connection allowed to land in silence.
+Deliberate and cold. "Cash payment. No follow-up inspection." — each detail dropped separately. "In 1957. The same year." — the repetition of the year is not rhetorical. It's compulsive.
 
 ---
 
-nar_g6_obj_cert_d
+nar_g6_obj_invoice_d
 
-"Old business paperwork. Partners part ways all the time — buyouts, disagreements, one party moving on. Thomas Ashford probably simply left. Harold was thorough about keeping his records current. This is filing."
+"Cellars get modified constantly — storage improvements, structural work, damp-proofing. A cash payment for construction thirty years ago is not unusual. The date is a coincidence. Just a date."
 
-The distortion is less convincing than before. "Thomas Ashford probably simply left" said with an effort at casualness. "This is filing" said quickly, like he wants to move on.
+"The date is a coincidence. Just a date." — said too firmly. Like he's saying it to himself as much as to the player. The distortion is cracking.
 
 ---
 
@@ -1245,7 +1245,7 @@ Calm, logical. The list of causes arrives quickly. "That's not evidence. That's 
 
 nar_g6_comb_burial
 
-"The same year. Harold built a sealed wall in his cellar the same year his business partner disappeared from every official record. Thomas didn't retire. Thomas didn't move away. Thomas didn't have a falling-out and leave. Harold built a wall around him — in his own cellar, in his own house — and then he spent thirty years telling everyone Thomas was simply gone. Thirty years. And when James moved the body, the rack was pushed aside and the bracket broke. And none of them — not James, not Daniel, not anyone who came through that cellar — said a word about what they had seen on the other side of that wall. I can't tell you that's a coincidence. I know what's behind that wall. I've always known — I think I've always known, since I first came to this house. I just couldn't say it. I couldn't make myself say it until now."
+"The same year. Harold built a sealed wall in his cellar the same year his business partner disappeared from every official record. He paid in cash. No inspection. No record. Thomas didn't retire. Thomas didn't move away. Thomas didn't have a falling-out and leave. Harold built a wall around him — in his own cellar, in his own house — and then he spent thirty years telling everyone Thomas was simply gone. Thirty years. And when James moved the body, the rack was pushed aside and the bracket broke. And none of them — not James, not Daniel, not anyone who came through that cellar — said a word about what they had seen on the other side of that wall. I can't tell you that's a coincidence. I know what's behind that wall. I've always known — I think I've always known, since I first came to this house. I just couldn't say it. I couldn't make myself say it until now."
 
 This is the most important line in the game. The three "Thomas didn't—" sentences build and then break. "Harold built a wall around him" said almost quietly — the weight absorbed, not performed. "Thirty years." said alone, then a silence. The bracket detail is added without drama — it's physical evidence of what they all walked past. The last lines are the narrator's composure coming apart — "I just couldn't say it." said with genuine difficulty. Not dramatic. Just honest.
 
